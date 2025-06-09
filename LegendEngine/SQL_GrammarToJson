@@ -1,0 +1,61 @@
+HTTP URL: 127.0.0.1:{{port_number}}/api/sql/v1/grammar/grammarToJson
+
+  This end point takes SQL Query(type: string) as the input and returns the Legend's internal JSON structure used to represent relational queries defined in Pure.
+
+   For example:
+   Input:
+   SELECT name FROM employees WHERE salary > 50000
+
+   Output:
+   {
+  "_type": "query",
+  "orderBy": [],
+  "queryBody": {
+    "_type": "querySpecification",
+    "from": [
+      {
+        "_type": "table",
+        "name": {
+          "parts": [
+            "employees"
+          ]
+        }
+      }
+    ],
+    "groupBy": [],
+    "orderBy": [],
+    "select": {
+      "_type": "select",
+      "distinct": false,
+      "selectItems": [
+        {
+          "_type": "singleColumn",
+          "expression": {
+            "_type": "qualifiedNameReference",
+            "name": {
+              "parts": [
+                "name"
+              ]
+            }
+          }
+        }
+      ]
+    },
+    "where": {
+      "_type": "comparisonExpression",
+      "left": {
+        "_type": "qualifiedNameReference",
+        "name": {
+          "parts": [
+            "salary"
+          ]
+        }
+      },
+      "operator": "GREATER_THAN",
+      "right": {
+        "_type": "integerLiteral",
+        "value": 50000
+      }
+    }
+  }
+}
