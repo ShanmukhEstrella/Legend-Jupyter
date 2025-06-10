@@ -3,11 +3,14 @@ HTTP URL: 127.0.0.1:{{port_number}}/api/sql/v1/grammar/grammarToJson
   This end point takes SQL Query(type: string) as the input and returns the Legend's internal JSON structure used to represent relational queries defined in Pure.
 
    For example:
-   Input:
+   Input in the ILegend Notebook:
    SELECT name FROM employees WHERE salary > 50000
 
-   Output:
-   {
+   Payload sent to the API:
+   "SELECT name FROM employees WHERE salary > 50000"
+
+  Output received in the ILegend Notebook:
+  {
   "_type": "query",
   "orderBy": [],
   "queryBody": {
