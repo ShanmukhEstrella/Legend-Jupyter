@@ -3,7 +3,7 @@ HTTP URL: 127.0.0.1:{{port_number}}/api/sql/v1/grammar/grammarToJson/batch
   This end point can take multiple SQL squeries(type: json) as the input and returns the Legend's internal JSON structure used to represent relational queries defined in Pure.
 
    For example:
-   Input in Notebook:
+   Input in ILegend Notebook:
     SELECT * FROM customers;
     SELECT id, name FROM products
 
@@ -20,7 +20,7 @@ HTTP URL: 127.0.0.1:{{port_number}}/api/sql/v1/grammar/grammarToJson/batch
       }
 
 
-  Output:
+  Output in ILegend Notebook:
  {
   "errors": {},
   "result": {
