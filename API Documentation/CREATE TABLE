@@ -6,7 +6,7 @@ HTTP URL: 127.0.0.1:{{port_number}}/api/data/createtable
    Input in ILegend Notebook:
    create warehouse1::db1::schema1::employee(id [int] [primarykey], name [string], age [int], salary [float], isActive [boolean])
 
-   Note: [type]<space>[primarykey] is must.
+   Note: Space between the [type] and [primarykey] is important
 
    Payload sent to the API:
   "create warehouse1::db1::schema1::employee(id [int] [primarykey], name [string], age [int], salary [float], isActive [boolean])"
