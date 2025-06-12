@@ -214,7 +214,35 @@ public class LoadController
                     .entity(Map.of("error", e.getMessage())).build();
         }
     }
+    @GET
+    @Path("/showtables")
+    @Produces(MediaType.APPLICATION_JSON)
+        public Response showAllTables()
+        {
+            List<String> tablePaths = new ArrayList<>();
 
+            for (Map.Entry<String, Map<String, Map<String, Map<String, ServerState.TableMetadata>>>> warehouseEntry : ServerState.data.entrySet())
+            {
+                String warehouse = warehouseEntry.getKey();
+                for (Map.Entry<String, Map<String, Map<String, ServerState.TableMetadata>>> dbEntry : warehouseEntry.getValue().entrySet())
+                {
+                    String db = dbEntry.getKey();
+                    for (Map.Entry<String, Map<String, ServerState.TableMetadata>> schemaEntry : dbEntry.getValue().entrySet())
+                    {
+                        String schema = schemaEntry.getKey();
+                        for (String table : schemaEntry.getValue().keySet())
+                        {
+                            String fullPath = String.join("::", warehouse, db, schema, table);
+                            tablePaths.add(fullPath);
+                        }
+                    }
+                }
+            }
+            Map<String, Object> response = new HashMap<>();
+            response.put("tables", tablePaths);
+            response.put("count", tablePaths.size());
+            return Response.ok(response).build();
+        }
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> getTable(String warehouse, String db, String schema, String table)
     {
