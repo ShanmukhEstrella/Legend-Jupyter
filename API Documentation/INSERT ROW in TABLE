@@ -1,4 +1,4 @@
-### HTTP URL: 127.0.0.1:{{port_number}}/api/data/insertrow
+HTTP URL: 127.0.0.1:{{port_number}}/api/data/insertrow
 
   This end point takes the input for inserting a row in the table
 
