@@ -1,0 +1,47 @@
+### HTTP URL: 127.0.0.1:{{port_number}}/api/data/insertrow
+
+  This end point takes the input for inserting a row in the table
+
+   For example:
+   Input in ILegend Notebook:
+   create warehouse1::db1::schema1::employee(id [int] [primarykey], name [string], age [int], salary [float], isActive [boolean])
+
+   Payload sent to the API:
+  "create warehouse1::db1::schema1::employee(id [int] [primarykey], name [string], age [int], salary [float], isActive [boolean])"
+
+
+  Output in ILegend Notebook:
+  {
+  "columns": [
+    {
+      "name": "id",
+      "primaryKey": true,
+      "type": "int"
+    },
+    {
+      "name": "name",
+      "primaryKey": false,
+      "type": "string"
+    },
+    {
+      "name": "age",
+      "primaryKey": false,
+      "type": "int"
+    },
+    {
+      "name": "salary",
+      "primaryKey": false,
+      "type": "float"
+    },
+    {
+      "name": "isActive",
+      "primaryKey": false,
+      "type": "boolean"
+    }
+  ],
+  "database": "db1",
+  "message": "Table initialized with schema",
+  "schema": "schema1",
+  "table": "employee",
+  "warehouse": "warehouse1"
+}
