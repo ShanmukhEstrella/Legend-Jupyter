@@ -1,3 +1,4 @@
+import ast
 import requests
 import datetime
 import json
@@ -17,10 +18,166 @@ class LegendPureKernel(Kernel):
     banner = "FINOS Legend PURE Kernel for Jupyter (via REST API)"
 
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
-        if code.startswith("%%"):
-            magic_line, *cell_lines = code.splitlines()
-            magic_name = magic_line[2:].strip()
-            cell_code = "\n".join(cell_lines)
+        magic_line, *cell_lines = code.splitlines()
+        cell_code = "\n".join(cell_lines)
+        if code.startswith("sql_to_json_line"):
+            headers = {"Content-Type": "text/plain"}
+            # stream_content = {'name': 'stdout', 'text': f"SQL Input Sent:\n{code}"}
+            # self.send_response(self.iopub_socket, 'stream', stream_content)
+            response = requests.post("http://127.0.0.1:9095/api/sql/v1/grammar/grammarToJson",data=cell_code, headers=headers)
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("sql_to_json_batch"):
+            headers = {"Content-Type": "application/json"}
+            # Split the input by semicolons and strip whitespace, ignore empty
+            queries = [q.strip() for q in cell_code.split(";") if q.strip()]
+            # Build payload as expected by the API
+            payload ={
+                f"query{i+1}": {"value": query + ";"}
+                for i, query in enumerate(queries)
+            }
+            response = requests.post(
+                "http://127.0.0.1:9095/api/sql/v1/grammar/grammarToJson/batch",
+                data=json.dumps(payload),
+                headers=headers
+            )
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("show_func_activators"):
+            headers = {"Content-Type": "text/plain"}
+            response = requests.get("http://127.0.0.1:9095/api/functionActivator/list")
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }    
+        elif code.startswith("pure_compile"):
+            headers = {"Content-Type": "application/json"}
+            payload = {"code": cell_code}
+            response = requests.post("http://127.0.0.1:9095/api/pure/v1/compilation/compile",data=json.dumps(payload), headers=headers)
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("sql_execute_line"):
+            headers = {"Content-Type": "text/plain"}
+            response = requests.post("http://127.0.0.1:9095/api/sql/v1/execution/executeQueryString",data=cell_code, headers=headers)
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("get_schema_sql_line"):
+            headers = {"Content-Type": "text/plain"}
+            response = requests.post("http://127.0.0.1:9095/api/sql/v1/execution/getSchemaFromQueryString",data=cell_code, headers=headers)
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("create "):
+            headers = {"Content-Type": "text/plain"}
+            response = requests.post("http://127.0.0.1:9095/api/data/createtable",data=magic_line, headers=headers)
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("insertrow"):
+            headers = {"Content-Type": "application/json"}
+            if '->' not in cell_code:
+                raise ValueError("Missing '->' separator in input")
+            row_part, path_part = cell_code.split('->', 1)
+            row_part = row_part.strip()
+            path_part = path_part.strip()
+            if not (row_part.startswith('[') and row_part.endswith(']')):
+                raise ValueError("Row part must be enclosed in [ ]")
+            row_part = row_part[1:-1].strip()  # remove [ and ]
+            row_dict = {}
+            for pair in row_part.split(','):
+                if ':' not in pair:
+                    raise ValueError(f"Invalid entry: {pair}")
+                key, val = map(str.strip, pair.split(':', 1))
+                # Try parsing value as int, float, bool, or leave as string
+                try:
+                    parsed_val = ast.literal_eval(val)
+                except Exception:
+                    parsed_val = val
+                row_dict[key] = parsed_val
+            payload = {"path": path_part,"row": row_dict}
+            response = requests.post("http://127.0.0.1:9095/api/data/insertrow",data=json.dumps(payload), headers=headers)
+            output = response.json()
+            if "error" in output:
+                self.send_response(self.iopub_socket, 'stream', {
+                'name': 'stderr',
+                'text': output["error"]
+                })
+                return {
+                    'status': 'error',
+                    'execution_count': self.execution_count,
+                    'ename': 'ExecutionError',
+                    'evalue': output["error"],
+                    'traceback': [output["error"]],
+                }
+            else:
+                stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+                self.send_response(self.iopub_socket, 'stream', stream_content)
+                return {
+                    'status': 'ok',
+                    'execution_count': self.execution_count,
+                    'payload': [],
+                    'user_expressions': {}
+                }
+        elif code.startswith("show_all_tables"):
+            response = requests.get("http://127.0.0.1:9095/api/data/showtables")
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+
+        
+        elif code.startswith("%%"):
+            magic_name = magic_line[2:]
             if magic_name in CELL_MAGICS:
                 output = CELL_MAGICS[magic_name](cell_code)
                 stream_content = {'name': 'stdout', 'text': output}
@@ -31,52 +188,8 @@ class LegendPureKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
-            elif magic_name == "sql":
-                headers = {"Content-Type": "text/plain"}
-                # stream_content = {'name': 'stdout', 'text': f"SQL Input Sent:\n{code}"}
-                # self.send_response(self.iopub_socket, 'stream', stream_content)
-                response = requests.post("http://127.0.0.1:9095/api/sql/v1/grammar/grammarToJson",data=cell_code, headers=headers)
-                output = response.json()
-                stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
-                self.send_response(self.iopub_socket, 'stream', stream_content)
-                return {
-                    'status': 'ok',
-                    'execution_count': self.execution_count,
-                    'payload': [],
-                    'user_expressions': {}
-                }
-            elif magic_name == "show_func_activators":
-                headers = {"Content-Type": "text/plain"}
-                # stream_content = {'name': 'stdout', 'text': f"SQL Input Sent:\n{code}"}
-                # self.send_response(self.iopub_socket, 'stream', stream_content)
-                response = requests.get("http://127.0.0.1:9095/api/functionActivator/list")
-                output = response.json()
-                stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
-                self.send_response(self.iopub_socket, 'stream', stream_content)
-                return {
-                    'status': 'ok',
-                    'execution_count': self.execution_count,
-                    'payload': [],
-                    'user_expressions': {}
-                }
-            elif magic_name == "pure":
-                headers = {"Content-Type": "application/json"}
-                payload = {"code": cell_code}
-                # stream_content = {'name': 'stdout', 'text': f"SQL Input Sent:\n{code}"}
-                # self.send_response(self.iopub_socket, 'stream', stream_content)
-                response = requests.post("http://127.0.0.1:9095/api/pure/v1/compilation/compile",data=json.dumps(payload), headers=headers)
-                output = response.json()
-                stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
-                self.send_response(self.iopub_socket, 'stream', stream_content)
-                return {
-                    'status': 'ok',
-                    'execution_count': self.execution_count,
-                    'payload': [],
-                    'user_expressions': {}
-                }
-        
-
-
+            
+            
         elif code.startswith("%"):
             magic_line = code.strip().split()
             magic_name = magic_line[0][1:].strip()
@@ -145,9 +258,10 @@ class LegendPureKernel(Kernel):
 
 
     def do_complete(self, code, cursor_pos):
-        keywords = [
-            'function', 'Class', 'let', 'if', 'else', 'true', 'false',
-            'return', 'match', 'import', 'native', 'extends', 'package'
+        keywords = [ 'createtable', 'sql_to_json_line',
+            'sql_to_json_batch','show_func_activators','sql_execute_line','sql_execute_batch','pure_compile','insertrow',
+            'show_all_tables', 'get_schema_sql_line', 'db ', 'load ','cache ','graph ','show', 'showInAgGrid ','ext','loadProject',
+            'loadSnowflakeConnection ','exploreSchemaFromConnection ','createStoreFromConnectionTable ','#>{' 
         ]
         token = code[:cursor_pos].split()[-1] if code[:cursor_pos].split() else ''
         matches = [kw for kw in keywords if kw.startswith(token)]
