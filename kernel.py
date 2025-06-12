@@ -110,7 +110,16 @@ class LegendPureKernel(Kernel):
             headers = {"Content-Type": "text/plain"}
             response = requests.post("http://127.0.0.1:9095/api/data/createtable",data=magic_line, headers=headers)
             output = response.json()
-            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            s='-----------------Table Created-----------------'+'\n' + "-----Ware House: "+output["warehouse"]+"-----"+'\n' + "-----DataBase: "+output["database"]+"-----"+'\n' + "-----Schema: "+output["schema"]+"-----"+'\n'
+            s = s+ "-----Columns-----"+'\n'
+            p = output["columns"]
+            for column in p:
+                s = s + column["name"] + f"[{column["type"]}]"
+                if(column["primaryKey"]==True):
+                    s = s + " is a Primary Key"+"\n"
+                else:
+                    s = s+'\n'
+            stream_content = {'name': 'stdout', 'text': s}
             self.send_response(self.iopub_socket, 'stream', stream_content)
             return {
                 'status': 'ok',
@@ -155,7 +164,12 @@ class LegendPureKernel(Kernel):
                     'traceback': [output["error"]],
                 }
             else:
-                stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+                s = 'Row Added.' + '\n' + '('
+                p = output["row"]
+                for fields in p:
+                    s = s +  f"{fields}: {p[fields]}"  + ', '
+                s = s[0:len(s)-2] + ')'
+                stream_content = {'name': 'stdout', 'text': s}
                 self.send_response(self.iopub_socket, 'stream', stream_content)
                 return {
                     'status': 'ok',
@@ -166,7 +180,11 @@ class LegendPureKernel(Kernel):
         elif code.startswith("show_all_tables"):
             response = requests.get("http://127.0.0.1:9095/api/data/showtables")
             output = response.json()
-            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            s = (f"Number of tables: {output['count']}") + "\n"
+            s = s + "Tables:" + "\n"
+            for table in output['tables']:
+                s = s + table + '\n'
+            stream_content = {'name': 'stdout', 'text': s}
             self.send_response(self.iopub_socket, 'stream', stream_content)
             return {
                 'status': 'ok',
