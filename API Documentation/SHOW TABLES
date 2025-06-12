@@ -1,0 +1,24 @@
+HTTP URL: 127.0.0.1:{{port_number}}/api/data/showtables
+
+ This end point is GET request from the server, it will retrieve the data of number of tables and the full paths of the tables.
+
+  For example:
+
+   Input in ILegend Notebook:
+   show_all_tables
+
+   HTTP responses we receive:
+    {
+      "count": 2,
+      "tables": [
+        "mywarehouse::mydatabase::myschema::mytable",
+        "warehouse1::db1::schema1::employee"
+         ]
+     }
+
+
+  Output in ILegend Notebook:
+  Number of tables: 2
+  Tables:
+  mywarehouse::mydatabase::myschema::mytable
+  warehouse1::db1::schema1::employee
