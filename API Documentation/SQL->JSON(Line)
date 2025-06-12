@@ -4,6 +4,7 @@ HTTP URL: 127.0.0.1:{{port_number}}/api/sql/v1/grammar/grammarToJson
 
    For example:
    Input in the ILegend Notebook:
+   sql_to_json_line
    SELECT name FROM employees WHERE salary > 50000
 
    Payload sent to the API:
