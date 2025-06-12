@@ -4,44 +4,30 @@ HTTP URL: 127.0.0.1:{{port_number}}/api/data/insertrow
 
    For example:
    Input in ILegend Notebook:
-   [id: 1, name: 'Alice', age: 25, isActive: true] -> warehouse1::db1::schema1::table1
+   [id: 1, name: "Alice", age: 25, isActive: true] -> warehouse1::db1::schema1::table1
    
-   Payload sent to the API:
-  "create warehouse1::db1::schema1::employee(id [int] [primarykey], name [string], age [int], salary [float], isActive [boolean])"
+  Payload sent to the API:
+  {
+    "path": "warehouse1::db1::schema1::table1",
+    "row": {
+        "id": 1,
+        "name": "Alice"
+        "age": 25,
+        "isActive": true
+    }
+}
 
+Note: 1) The table should be first existing to insert a row into it. (Else we made sure to raise an error)
+      2) The attribute type should match with the type of the element we are adding. (Else we made sure to raise an error)
+      3) We can't add two rows with the same element in it's primary key field. (Else we made sure to raise an error)
 
   Output in ILegend Notebook:
   {
-  "columns": [
-    {
-      "name": "id",
-      "primaryKey": true,
-      "type": "int"
-    },
-    {
-      "name": "name",
-      "primaryKey": false,
-      "type": "string"
-    },
-    {
-      "name": "age",
-      "primaryKey": false,
-      "type": "int"
-    },
-    {
-      "name": "salary",
-      "primaryKey": false,
-      "type": "float"
-    },
-    {
-      "name": "isActive",
-      "primaryKey": false,
-      "type": "boolean"
-    }
-  ],
-  "database": "db1",
-  "message": "Table initialized with schema",
-  "schema": "schema1",
-  "table": "employee",
-  "warehouse": "warehouse1"
+  "message": "Row added",
+  "row": {
+    "id": 1,
+     "name": "Alice",
+     "age": 25,
+     "isActive": true,
+  }
 }
