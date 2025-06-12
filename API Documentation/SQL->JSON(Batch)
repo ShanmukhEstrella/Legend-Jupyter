@@ -4,6 +4,7 @@ HTTP URL: 127.0.0.1:{{port_number}}/api/sql/v1/grammar/grammarToJson/batch
 
    For example:
    Input in ILegend Notebook:
+    sql_to_json_batch
     SELECT * FROM customers;
     SELECT id, name FROM products
 
