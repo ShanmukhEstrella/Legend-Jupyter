@@ -177,6 +177,68 @@ class LegendPureKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
+        elif code.startswith("delete_row"):
+            headers = {"Content-Type": "text/plain"}
+            response = requests.post("http://127.0.0.1:9095/api/data/deleterow", data=cell_code, headers=headers)
+            output = response.json()
+            if "error" in output:
+                self.send_response(self.iopub_socket, 'stream', {
+                'name': 'stderr',
+                'text': output["error"]
+                })
+                return {
+                    'status': 'error',
+                    'execution_count': self.execution_count,
+                    'ename': 'ExecutionError',
+                    'evalue': output["error"],
+                    'traceback': [output["error"]],
+                }
+            deleted = output["deletedRow"]
+            s = 'Row deleted successfully:\n('
+            for key, val in deleted.items():
+                s += f"{key}: {val}, "
+            s = s.rstrip(", ") + ')'
+            stream_content = {'name': 'stdout', 'text': s}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+
+        elif code.startswith("show_table"):
+            headers = {"Content-Type": "text/plain"}
+            response = requests.post("http://127.0.0.1:9095/api/data/fetchtable",data=cell_code,headers=headers)
+            output = response.json()
+            import pandas as pd
+            if "error" in output:
+                self.send_response(self.iopub_socket, 'stream', {
+                'name': 'stderr',
+                'text': output["error"]
+                })
+                return {
+                    'status': 'error',
+                    'execution_count': self.execution_count,
+                    'ename': 'ExecutionError',
+                    'evalue': output["error"],
+                    'traceback': [output["error"]],
+                }
+            df = pd.DataFrame(output)
+            display_content = {
+                'data': {
+                    'text/plain': str(df),
+                    'text/html': df.to_html()
+                },
+                'metadata': {}
+            }
+            self.send_response(self.iopub_socket, 'display_data', display_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
         elif code.startswith("show_all_tables"):
             response = requests.get("http://127.0.0.1:9095/api/data/showtables")
             output = response.json()
@@ -186,6 +248,45 @@ class LegendPureKernel(Kernel):
                 s = s + table + '\n'
             stream_content = {'name': 'stdout', 'text': s}
             self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("load duckdb"):
+            headers = {"Content-Type": "text/plain"}
+            response = requests.post("http://127.0.0.1:9095/api/data/duckdb/load",data=cell_code, headers=headers)
+            output = response.text
+            stream_content = {'name': 'stdout', 'text': output}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("query duckdb"):
+            headers = {"Content-Type": "application/json"}
+            magic_line_new = magic_line.split()
+            payload = {
+                "dbPath": f"{magic_line_new[2]}",
+                "query": f"{cell_code}"
+            }
+            response = requests.post("http://127.0.0.1:9095/api/data/duckdb/query", data=json.dumps(payload), headers=headers)
+            output = response.json()
+            import pandas as pd
+            if "error" in output:
+                raise Exception(output["error"])
+            df = pd.DataFrame(output)
+            display_content = {
+                'data': {
+                    'text/plain': str(df),
+                    'text/html': df.to_html()
+                },
+                'metadata': {}
+            }
+            self.send_response(self.iopub_socket, 'display_data', display_content)
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
