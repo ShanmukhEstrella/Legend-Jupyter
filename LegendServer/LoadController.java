@@ -1,10 +1,18 @@
 package org.finos.legend.pylegend;
-
+import javax.servlet.http.HttpServletRequest;
+import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.*;
+//import javax.ws.rs.Path;
+import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
+import javax.ws.rs.core.UriInfo;
+import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
+import java.sql.*;
+
+import static org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.ElasticsearchObjectMapperProvider.OBJECT_MAPPER;
 
 
 @Path("/data")
@@ -111,6 +119,56 @@ public class LoadController
         )).build();
     }
     @POST
+    @Path("/deleterow")
+    @Consumes(MediaType.TEXT_PLAIN)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response deleteRowByIndex(String input)
+    {
+        try
+        {
+            // Expect input: "warehouse::db::schema::table::index"
+            String[] parts = input.trim().split("::");
+            if (parts.length != 5)
+            {
+                throw new IllegalArgumentException("Invalid format. Expected: warehouse::db::schema::table::index");
+            }
+
+            String warehouse = parts[0];
+            String db = parts[1];
+            String schema = parts[2];
+            String table = parts[3];
+            int index = Integer.parseInt(parts[4]);
+
+            Map<String, Map<String, Map<String, ServerState.TableMetadata>>> dbs = ServerState.data.get(warehouse);
+            if (dbs == null || !dbs.containsKey(db) || !dbs.get(db).containsKey(schema) || !dbs.get(db).get(schema).containsKey(table))
+            {
+                throw new RuntimeException("Table not found: " + String.join("::", warehouse, db, schema, table));
+            }
+
+            ServerState.TableMetadata metadata = dbs.get(db).get(schema).get(table);
+            List<Map<String, Object>> rows = metadata.rows;
+
+            if (index < 0 || index >= rows.size())
+            {
+                throw new IndexOutOfBoundsException("Row index out of range: " + index);
+            }
+
+            Map<String, Object> removedRow = rows.remove(index);
+
+            return Response.ok(Map.of(
+                    "message", "Row deleted successfully",
+                    "deletedRow", removedRow
+            )).build();
+        }
+        catch (Exception e)
+        {
+            return Response.status(Response.Status.BAD_REQUEST)
+                    .entity(Map.of("error", e.getMessage()))
+                    .build();
+        }
+    }
+
+    @POST
     @Path("/insertrow")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
@@ -195,25 +253,45 @@ public class LoadController
         }
     }
 
-    @GET
-    @Path("/get")
+    @POST
+    @Path("/fetchtable")
+    @Consumes(MediaType.TEXT_PLAIN)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response getTableData(@QueryParam("warehouse") String warehouse,
-                                 @QueryParam("database") String db,
-                                 @QueryParam("schema") String schema,
-                                 @QueryParam("table") String table)
+    public Response getTableDataPost(String fullPath)
     {
         try
         {
-            List<Map<String, Object>> tableData = getTable(warehouse, db, schema, table);
+            // Parse fullPath -> warehouse::db::schema::table
+            String[] parts = fullPath.trim().split("::");
+            if (parts.length != 4)
+            {
+                throw new IllegalArgumentException("Invalid path format. Expected format: warehouse::db::schema::table");
+            }
+
+            String warehouse = parts[0];
+            String db = parts[1];
+            String schema = parts[2];
+            String table = parts[3];
+
+            // Check if table exists
+            Map<String, Map<String, Map<String, ServerState.TableMetadata>>> dbs = ServerState.data.get(warehouse);
+            if (dbs == null || !dbs.containsKey(db) || !dbs.get(db).containsKey(schema) || !dbs.get(db).get(schema).containsKey(table))
+            {
+                throw new RuntimeException("Table not found: " + fullPath);
+            }
+
+            ServerState.TableMetadata tableMeta = dbs.get(db).get(schema).get(table);
+            List<Map<String, Object>> tableData = tableMeta.rows;
+
             return Response.ok(tableData).build();
         }
         catch (Exception e)
         {
-            return Response.status(Response.Status.NOT_FOUND)
+            return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", e.getMessage())).build();
         }
     }
+
     @GET
     @Path("/showtables")
     @Produces(MediaType.APPLICATION_JSON)
@@ -243,6 +321,105 @@ public class LoadController
             response.put("count", tablePaths.size());
             return Response.ok(response).build();
         }
+
+    @POST
+    @Path("/duckdb/load")
+    @Consumes(MediaType.TEXT_PLAIN)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response loadCsvFromPath(String fullPath)
+    {
+        try
+        {
+            fullPath = fullPath.trim();
+            File csvFile = new File(fullPath);
+            if (!csvFile.exists() || !csvFile.getName().endsWith(".csv"))
+            {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity("Invalid CSV file path: " + fullPath).build();
+            }
+
+            // Extract table name and create .duckdb path
+            java.nio.file.Path csvPath = csvFile.toPath();
+            String baseName = csvFile.getName().replaceAll("\\.csv$", ""); // 'employees'
+            String tableName = baseName;
+            java.nio.file.Path parentDir = csvPath.getParent();
+            java.nio.file.Path duckDbPath = parentDir.resolve(baseName + ".duckdb"); // 'employees.duckdb'
+
+            // Load into DuckDB
+            Class.forName("org.duckdb.DuckDBDriver");
+            try (Connection conn = DriverManager.getConnection("jdbc:duckdb:" + duckDbPath.toAbsolutePath());
+                 Statement stmt = conn.createStatement())
+            {
+                String query = String.format(
+                        "CREATE OR REPLACE TABLE \"%s\" AS SELECT * FROM read_csv_auto('%s');",
+                        tableName,
+                        csvPath.toAbsolutePath().toString().replace("\\", "\\\\")
+                );
+                stmt.execute(query);
+            }
+
+            return Response.ok("CSV loaded as table '" + tableName + "' in file: " + duckDbPath).build();
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity("Error: " + e.getMessage()).build();
+        }
+    }
+    @POST
+    @Path("/duckdb/query")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response queryDuckDBTable(Map<String, String> request)
+    {
+        try
+        {
+            String dbPath = request.get("dbPath").trim();   // full path to .duckdb file
+            String sql = request.get("query").trim();        // SQL query
+
+            if (!dbPath.endsWith(".duckdb") || sql.isEmpty())
+            {
+                return Response.status(Response.Status.BAD_REQUEST)
+                        .entity(Map.of("error", "Invalid input. Expecting .duckdb file and non-empty query.")).build();
+            }
+
+            File dbFile = new File(dbPath);
+            if (!dbFile.exists())
+            {
+                return Response.status(Response.Status.NOT_FOUND)
+                        .entity(Map.of("error", "DuckDB file not found at path: " + dbPath)).build();
+            }
+
+            List<Map<String, Object>> result = new ArrayList<>();
+            try (Connection conn = DriverManager.getConnection("jdbc:duckdb:" + dbFile.getAbsolutePath());
+                 Statement stmt = conn.createStatement();
+                 ResultSet rs = stmt.executeQuery(sql))
+            {
+                ResultSetMetaData meta = rs.getMetaData();
+                int columnCount = meta.getColumnCount();
+
+                while (rs.next())
+                {
+                    Map<String, Object> row = new LinkedHashMap<>();
+                    for (int i = 1; i <= columnCount; i++)
+                    {
+                        row.put(meta.getColumnLabel(i), rs.getObject(i));
+                    }
+                    result.add(row);
+                }
+            }
+
+            return Response.ok(result).build();
+        }
+        catch (Exception e)
+        {
+            e.printStackTrace();
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR)
+                    .entity(Map.of("error", e.getMessage())).build();
+        }
+    }
+
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> getTable(String warehouse, String db, String schema, String table)
     {
