@@ -1,9 +1,13 @@
 package org.finos.legend.pylegend;
 
-import java.util.ArrayList;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import com.fasterxml.jackson.annotation.JsonInclude;
+import com.fasterxml.jackson.core.JsonGenerator;
+import com.fasterxml.jackson.databind.MapperFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import org.finos.legend.engine.protocol.pure.v1.PureProtocolObjectMapperFactory;
+
+import java.util.*;
 
 public class ServerState
 {
@@ -31,6 +35,5 @@ public class ServerState
             this.isPrimaryKey = isPrimaryKey;
         }
     }
-
     public static final Map<String, Map<String, Map<String, Map<String, TableMetadata>>>> data = new HashMap<>();
 }
