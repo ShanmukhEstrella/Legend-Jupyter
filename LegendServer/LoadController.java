@@ -1,17 +1,41 @@
 package org.finos.legend.pylegend;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.hazelcast.console.LineReader;
+import org.eclipse.collections.api.factory.Lists;
+import org.eclipse.collections.api.factory.Maps;
+import org.finos.legend.engine.plan.execution.PlanExecutor;
+import org.finos.legend.engine.plan.execution.stores.relational.config.RelationalExecutionConfiguration;
+import org.finos.legend.engine.plan.execution.stores.relational.config.TemporaryTestDbConfiguration;
+import org.finos.legend.engine.plan.execution.stores.relational.connection.authentication.strategy.OAuthProfile;
+import org.finos.legend.engine.plan.execution.stores.relational.connection.manager.ConnectionManagerSelector;
+import org.finos.legend.engine.plan.execution.stores.relational.plugin.Relational;
+import org.finos.legend.engine.plan.execution.stores.relational.plugin.RelationalStoreExecutor;
+import org.finos.legend.engine.protocol.pure.v1.model.packageableElement.store.relational.connection.RelationalDatabaseConnection;
+import java.util.Collections;
+import org.finos.legend.engine.repl.client.jline3.JLine3Completer;
+import org.finos.legend.engine.repl.client.jline3.JLine3Parser;
+import org.finos.legend.engine.repl.core.legend.LegendInterface;
+import org.finos.legend.engine.repl.core.legend.LocalLegendInterface;
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import javax.ws.rs.*;
-//import javax.ws.rs.Path;
+import javax.ws.rs.client.ClientBuilder;
 import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriInfo;
 import java.io.File;
 import java.util.*;
 import java.util.stream.Collectors;
+import org.finos.legend.engine.repl.client.Client;
 import java.sql.*;
 
+import org.finos.legend.engine.repl.dataCube.DataCubeReplExtension;
+import org.finos.legend.engine.repl.relational.RelationalReplExtension;
+import org.finos.legend.engine.repl.relational.autocomplete.RelationalCompleterExtension;
+import org.finos.legend.engine.repl.relational.shared.ConnectionHelper;
+import org.jline.reader.LineReaderBuilder;
+
+import java.sql.Statement;
 import static org.finos.legend.engine.protocol.store.elasticsearch.v7.specification.ElasticsearchObjectMapperProvider.OBJECT_MAPPER;
 
 
@@ -20,58 +44,50 @@ public class LoadController
 {
     // Simulated in-memory database
     private static final Map<String, Object> dataStore = new HashMap<>();
-
     @POST
     @Path("/createtable")
     @Consumes(MediaType.TEXT_PLAIN)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response loadTable(String payload) {
-        if (!payload.startsWith("create ")) {
+    public Response loadTable(String payload)
+    {
+        if (!payload.startsWith("create "))
+        {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", "Payload must start with 'create '")).build();
         }
-
         String rest = payload.substring(6).trim();
-
         int firstParen = rest.indexOf('(');
         int lastParen = rest.lastIndexOf(')');
-
-        if (firstParen == -1 || lastParen == -1 || lastParen <= firstParen) {
+        if (firstParen == -1 || lastParen == -1 || lastParen <= firstParen)
+        {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", "Missing or malformed schema declaration")).build();
         }
-
         String pathPart = rest.substring(0, firstParen).trim();
         String schemaPart = rest.substring(firstParen + 1, lastParen).trim();
-
         String[] parts = pathPart.split("::");
-        if (parts.length != 4) {
+        if (parts.length != 4)
+        {
             return Response.status(Response.Status.BAD_REQUEST)
                     .entity(Map.of("error", "Path must be warehouse::db::schema::table")).build();
         }
-
         String warehouse = parts[0], db = parts[1], schema = parts[2], table = parts[3];
-
         // Parse schema
         // Parse schema
         List<ServerState.Column> columns = new ArrayList<>();
         String[] columnDefs = schemaPart.split(",");
-
         for (String colDef : columnDefs)
         {
             colDef = colDef.trim();
             String[] tokens = colDef.split("\\s+");
-
             if (tokens.length < 2)
             {
                 return Response.status(Response.Status.BAD_REQUEST)
                         .entity(Map.of("error", "Invalid column definition: " + colDef)).build();
             }
-
             String name = tokens[0];
             String type = null;
             boolean isPrimaryKey = false;
-
             // Find all brackets: [type], [primarykey]
             for (String token : tokens)
             {
@@ -279,10 +295,8 @@ public class LoadController
             {
                 throw new RuntimeException("Table not found: " + fullPath);
             }
-
             ServerState.TableMetadata tableMeta = dbs.get(db).get(schema).get(table);
             List<Map<String, Object>> tableData = tableMeta.rows;
-
             return Response.ok(tableData).build();
         }
         catch (Exception e)
@@ -419,6 +433,49 @@ public class LoadController
                     .entity(Map.of("error", e.getMessage())).build();
         }
     }
+
+//    @POST
+//    @Path("/execute")
+//    public Response load(@Context HttpServletRequest request, @Context HttpServletResponse response)
+//    {
+//        try
+//        {
+//            Map<String,Object> payload = OBJECT_MAPPER.readValue(request.getInputStream(), new TypeReference<Map<String, Object>>(){});
+//            String line = (String) payload.get("line");
+//            if(line.startsWith("load "))
+//            {
+//                String[] tokens = line.split(" ");
+//                if(tokens.length < 3 || tokens.length > 4)
+//                {
+////                    throw new RuntimeException(String.format("Error, load should be used as '%s",CLIENT.commands.selectInstancesOf(Load.class).get(0).documentation));
+//                     throw new RuntimeException(String.format("Error in using the load command"));
+//                }
+//                RelationalDatabaseConnection databaseConnection = (RelationalDatabaseConnection) org.finos.legend.engine.repl.relational.shared.ConnectionHelper.getDatabaseConnection(CLIENT.getModelState().parse(),tokens[2]);
+//                try(Connection connection = org.finos.legend.engine.repl.relational.shared.ConnectionHelper.getConnection(databaseConnection,PLAN_EXECUTOR))
+//                {
+//                    String tableName = tokens.length == 4 ? tokens[3] : ("test"+(ConnectionHelper.getTables(databaseConnection,PLAN_EXECUTOR).count()+1));
+//                    int rowCount = 0;
+//                    try(Statement statement = connection.createStatement())
+//                    {
+//                        statement.executeUpdate(org.finos.legend.engine.plan.execution.stores.relational.connection.driver.DatabaseManager.fromString(databaseConnection.type.name()).relationalDatabaseSupport().load(tableName, tokens[1]));
+//                        try (ResultSet rs = statement.executeQuery("select count(*) as cnt from " + tableName)) {
+//                            rs.next();
+//                            rowCount = rs.getInt(1);
+//                        }
+//                    }
+//                    return Response.ok("Loaded into table: '" + tableName + "'. RowCount: "+rowCount).build();
+//                }
+//            }
+//        }
+//        catch (Exception e)
+//        {
+//            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Collections.singletonMap("error", e.getMessage())).type(MediaType.APPLICATION_JSON).build();
+//        }
+//        return Response.status(Response.Status.BAD_REQUEST)
+//                .entity(Collections.singletonMap("error", "Unsupported command"))
+//                .type(MediaType.APPLICATION_JSON)
+//                .build();
+//    }
 
     @SuppressWarnings("unchecked")
     private List<Map<String, Object>> getTable(String warehouse, String db, String schema, String table)
