@@ -71,6 +71,7 @@ import org.finos.legend.pure.generated.Root_meta_pure_extension_Extension;
 import org.finos.legend.server.pac4j.LegendPac4jBundle;
 
 
+
 import java.util.Collections;
 import java.util.ServiceLoader;
 
@@ -138,12 +139,12 @@ public class PyLegendSqlServer<T extends ServerConfiguration> extends Server<T>
         environment.jersey().register(new SqlGrammar());
         environment.jersey().register(new CatchAllExceptionMapper());
         environment.jersey().register(new Compile(modelManager));
+
         environment.jersey().register(new GrammarToJson());
         environment.jersey().register(new JsonToGrammar());
-        environment.jersey().register(new DataShow());
-//        environment.jersey().register(new TerminalAPIs());
         environment.jersey().register(new LoadController());
+        environment.jersey().register(new DataServer());
         environment.jersey().register(new FunctionActivatorAPI(modelManager, Lists.mutable.empty(), Lists.mutable.with(new FunctionActivatorService[]{new SnowflakeAppService(planExecutor), new HostedServiceService()}), routerExtensions));
-        Compiler.compile(PureModelContextData.newBuilder().build(), DeploymentMode.TEST_IGNORE_FUNCTION_MATCH, Lists.mutable.empty());
+        //Compiler.compile(PureModelContextData.newBuilder().build(), DeploymentMode.TEST_IGNORE_FUNCTION_MATCH, Lists.mutable.empty());
     }
 }
