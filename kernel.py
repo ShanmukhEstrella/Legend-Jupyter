@@ -11,9 +11,10 @@ class LegendPureKernel(Kernel):
     language = 'pure'
     language_version = '1.0'
     language_info = {
-        'name': 'pure',
+        'name': 'python',
         'mimetype': 'text/x-pure',
         'file_extension': '.pure',
+        'pygments_lexer': 'python'
     }
     banner = "FINOS Legend Kernel for Jupyter (via REST API)"
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
@@ -332,11 +333,126 @@ class LegendPureKernel(Kernel):
                 'payload': [],
                 'user_expressions': {}
             } 
-        elif code.startswith("load ") or code.startswith("db") or code.startswith("drop_all_tables "):
-            response = requests.post("http://127.0.0.1:9095/api/server/execute",json={"line":magic_line});
+        elif code.startswith("load "):
+            import threading, time
+            from IPython.display import clear_output
+            # Setup stop event for timing thread
+            stop_event = threading.Event()
+            # Live timer function
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    stream_content = {
+                'name': 'stdout',
+                'text': f"Loading csv data into table in DuckDB connection... {elapsed:.2f} seconds elapsed\n"
+                 }
+                    self.send_response(self.iopub_socket, 'stream', stream_content)
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                stream_content = {
+                'name': 'stdout',
+                'text': f"Total Time Taken - {elapsed:.2f}s\n"
+                 }
+                self.send_response(self.iopub_socket, 'stream', stream_content)
+            # Start the timer thread
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            # Make the API request
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            # Show result
             output = response.text
             stream_content = {'name': 'stdout', 'text': output}
             self.send_response(self.iopub_socket, 'stream', stream_content)
+
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("db"):
+            import threading, time
+            from IPython.display import clear_output
+            # Setup stop event for timing thread
+            stop_event = threading.Event()
+            # Live timer function
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    stream_content = {
+                'name': 'stdout',
+                'text': f"Exploring DataBase... {elapsed:.2f} seconds elapsed\n"
+                 }
+                    self.send_response(self.iopub_socket, 'stream', stream_content)
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                stream_content = {
+                'name': 'stdout',
+                'text': f"Total Time Taken - {elapsed:.2f}s\n"
+                 }
+                self.send_response(self.iopub_socket, 'stream', stream_content)
+            # Start the timer thread
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            # Make the API request
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            # Show result
+            output = response.text
+            stream_content = {'name': 'stdout', 'text': output}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("drop_all_tables"):
+            import threading, time
+            from IPython.display import clear_output
+            # Setup stop event for timing thread
+            stop_event = threading.Event()
+            # Live timer function
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    stream_content = {
+                'name': 'stdout',
+                'text': f"Dropping all tables... {elapsed:.2f} seconds elapsed\n"
+                 }
+                    self.send_response(self.iopub_socket, 'stream', stream_content)
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                stream_content = {
+                'name': 'stdout',
+                'text': f"Total Time Taken - {elapsed:.2f}s\n"
+                 }
+                self.send_response(self.iopub_socket, 'stream', stream_content)
+            # Start the timer thread
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            # Make the API request
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            # Show result
+            output = response.text
+            stream_content = {'name': 'stdout', 'text': output}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
@@ -345,21 +461,50 @@ class LegendPureKernel(Kernel):
             }
         else:
             import pandas
-            response = requests.post("http://127.0.0.1:9095/api/server/execute",json={"line":magic_line});
+            import threading, time
+            from IPython.display import clear_output
+            # Setup stop event for timing thread
+            stop_event = threading.Event()
+            # Live timer function
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    stream_content = {
+                'name': 'stdout',
+                'text': f"Data Quereying... {elapsed:.2f} seconds elapsed\n"
+                 }
+                    self.send_response(self.iopub_socket, 'stream', stream_content)
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                stream_content = {
+                'name': 'stdout',
+                'text': f"Total Time Taken - {elapsed:.2f}s\n"
+                 }
+                self.send_response(self.iopub_socket, 'stream', stream_content)
+            # Start the timer thread
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            # Make the API request
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            # Show result
             output = response.json()
-            if("error" in output):
-                self.send_response(self.iopub_socket, 'stream', {
-                'name': 'stderr',
-                'text': "Syntax error:" + output["error"]
-                })
+            try:
+                df = pandas.DataFrame(output) 
+            except Exception:
+                output = response.text
+                stream_content = {'name': 'stderr', 'text': output[1:len(output)-1]}
+                self.send_response(self.iopub_socket, 'stream', stream_content)
                 return {
                     'status': 'error',
                     'execution_count': self.execution_count,
-                    'ename': 'ExecutionError',
-                    'evalue': output["error"],
-                    'traceback': [output["error"]],
+                    'payload': [],
+                    'user_expressions': {}
                 }
-            df = pandas.DataFrame(output) 
             display_content = {
                 'data': {
                     'text/plain': str(df),
@@ -377,69 +522,65 @@ class LegendPureKernel(Kernel):
     def do_complete(self, code, cursor_pos):
         import os
         import re
+
         keywords = [
             'createtable', 'sql_to_json_line', 'sql_to_json_batch',
             'show_func_activators', 'sql_execute_line', 'sql_execute_batch',
             'pure_compile', 'insertrow', 'show_all_tables', 'get_schema_sql_line',
             'db ', 'load ', 'cache ', 'graph ', 'show', 'showInAgGrid ',
-            'ext', 'loadProject', 'loadSnowflakeConnection ', 'drop_all_tables ',
+            'ext', 'loadProject', 'loadSnowflakeConnection ', 'drop_all_tables ','local::DuckDuckConnection',
             'exploreSchemaFromConnection ', 'createStoreFromConnectionTable ', '#>{'
         ]
-        duck_conn_suggestion = ' local::DuckDuckConnection'
-        base_path = "/home/shannu/Documents/CSV/"
+
+        duck_conn_suggestion = 'local::DuckDuckConnection'
         code_upto_cursor = code[:cursor_pos]
         token = code_upto_cursor.split()[-1] if code_upto_cursor.split() else ''
         stripped_code = code_upto_cursor.strip()
-        match_load = re.match(r'^load\s*(.*)$', stripped_code)
-        if match_load:
-            typed_path = match_load.group(1).strip()
-            if typed_path == '' or not typed_path.endswith('.csv'):
-                full_prefix = os.path.join(base_path, typed_path)
-                dir_path = os.path.dirname(full_prefix) if os.path.dirname(full_prefix) else base_path
 
-                try:
-                    files = os.listdir(dir_path)
-                    matches = [
-                        os.path.join(dir_path, f) for f in files
-                        if f.startswith(os.path.basename(full_prefix)) and f.endswith('.csv')
-                    ]
-                except FileNotFoundError:
-                    matches = []
-                return {
-                    'status': 'ok',
-                    'matches': matches,
-                    'cursor_start': cursor_pos - len(typed_path),
-                    'cursor_end': cursor_pos,
-                    'metadata': {},
-                }
-            elif typed_path.endswith('.csv') and duck_conn_suggestion not in stripped_code:
-                return {
-                    'status': 'ok',
-                    'matches': [duck_conn_suggestion],
-                    'cursor_start': cursor_pos,
-                    'cursor_end': cursor_pos,
-                    'metadata': {},
-                }
-        match_db = re.match(r'^db\s*$', stripped_code)
-        if match_db and duck_conn_suggestion not in stripped_code:
+        # ------------------ PATH COMPLETION ------------------
+        fs_match = re.search(r'(["\']?)(?P<path>(?:~|\.{0,2}/|/)[^\'"\s]*)$', code_upto_cursor)
+        if fs_match:
+            raw_path = fs_match.group("path")
+            base_dir = os.path.expanduser(os.path.dirname(raw_path) or ".")
+            prefix = os.path.basename(raw_path)
+
+            try:
+                entries = os.listdir(base_dir)
+            except Exception:
+                entries = []
+
+            matches = []
+            for e in entries:
+                if e.startswith(prefix) and e != prefix:
+                    full_path = os.path.join(base_dir, e)
+                    if os.path.isdir(full_path):
+                        e += "/"
+                    matches.append(e)
+
+            # Suggest only the suffix (not full path) for relative suggestions
+            cursor_start = cursor_pos - len(prefix)
+            cursor_end = cursor_pos
+
             return {
-                'status': 'ok',
-                'matches': [duck_conn_suggestion[1:]],
-                'cursor_start': cursor_pos,
-                'cursor_end': cursor_pos,
-                'metadata': {},
+                "status": "ok",
+                "matches": matches,
+                "cursor_start": cursor_start,
+                "cursor_end": cursor_end,
+                "metadata": {}
             }
-        match_drop = re.match(r'^drop_all_tables\s*$', stripped_code)
-        if match_drop and duck_conn_suggestion not in stripped_code:
+
+         # -------- Fallback to keyword completion --------
+        # Don't trigger keyword suggestions if the last token is empty (after space)
+        if token in keywords or token + " " in keywords:
+            # Already typed full keyword, no need to suggest
             return {
                 'status': 'ok',
-                'matches': [duck_conn_suggestion[1:]],
+                'matches': [],
                 'cursor_start': cursor_pos,
                 'cursor_end': cursor_pos,
                 'metadata': {},
             }
 
-        # Default: keyword completions
         matches = [kw for kw in keywords if kw.startswith(token)]
         return {
             'status': 'ok',
@@ -448,7 +589,6 @@ class LegendPureKernel(Kernel):
             'cursor_end': cursor_pos,
             'metadata': {},
         }
-
 
 if __name__ == '__main__':
     from ipykernel.kernelapp import IPKernelApp
