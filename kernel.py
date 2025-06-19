@@ -31,7 +31,13 @@ def register_custom_pure_lexer():
         ('text/x-pure',)
     )
     lexers._lexer_cache.clear()  # Clear cache if needed
+
+
+
 register_custom_pure_lexer()
+
+
+
 
 class LegendPureKernel(Kernel):
     implementation = 'LegendPureKernel'
@@ -44,8 +50,29 @@ class LegendPureKernel(Kernel):
         'file_extension': '.pure',
         'pygments_lexer': 'python'
     }
-
     banner = "FINOS Legend Kernel for Jupyter (via REST API)"
+
+
+    def play_success_sound(self):
+        rate = 44100
+        t = np.linspace(0, 0.1, rate, False)
+        data = (np.sin(2 * np.pi * 440 * t) * 32767).astype(np.int16)
+        buffer = io.BytesIO()
+        with wave.open(buffer, 'wb') as wf:
+            wf.setnchannels(1)
+            wf.setsampwidth(2)
+            wf.setframerate(rate)
+            wf.writeframes(data.tobytes())
+        html = f"""<audio autoplay><source src="data:audio/wav;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"></audio>"""
+        self.send_response(self.iopub_socket, 'display_data', {
+            'data': {'text/html': html},
+            'metadata': {}
+        })
+
+
+
+
+
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
         magic_line, *cell_lines = code.splitlines()
         cell_code = "\n".join(cell_lines)
@@ -616,30 +643,7 @@ class LegendPureKernel(Kernel):
             finally:
                 stop_event.set()
                 timer_thread.join()
-            rate = 44100
-            t = np.linspace(0, 1, rate, False)
-            data = (np.sin(2 * np.pi * 440 * t) * 32767).astype(np.int16)
-            buffer = io.BytesIO()
-            with wave.open(buffer, 'wb') as wf:
-                wf.setnchannels(1)
-                wf.setsampwidth(2)
-                wf.setframerate(rate)
-                wf.writeframes(data.tobytes())
-                wav_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
-            html = f"""
-            <audio autoplay>
-            <source src="data:audio/wav;base64,{wav_base64}" type="audio/wav">
-            Your browser does not support the audio element.
-            </audio>
-            """
-            display_content = {
-                "data": {
-                    "text/html": html,
-                    "text/plain": "Beep Sound"
-                },
-                "metadata": {}
-            }
-            self.send_response(self.iopub_socket, 'display_data', display_content)
+            self.play_success_sound()
             if(response.headers.get('Content-Type') == 'application/json'):
                 output = response.json()
                 s = HTML(f"<div style='color: red;'>{output["error"]}</div>")
@@ -1101,9 +1105,6 @@ class LegendPureKernel(Kernel):
                 'user_expressions': {}
             }
         
-
-
-
 
 
 
