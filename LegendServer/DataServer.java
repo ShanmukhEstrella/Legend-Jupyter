@@ -58,6 +58,8 @@ import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 import org.jline.reader.LineReaderBuilder;
 
 import java.sql.Statement;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 @Path("/server")
@@ -71,6 +73,7 @@ public class DataServer
     private static JLine3Parser PARSER ;
     private static JLine3Completer COMPLETER ;
     private static LineReader LINE_READER;
+    private static final Map<String, String> MACROS = new HashMap<>();
     private static PlanExecutor buildPlanExecutor()
     {
 
@@ -85,8 +88,9 @@ public class DataServer
     }
     private static Result executeLine(String txt)
     {
-        String code = "###Pure\n"+
-                "function repl::__internal__::run():Any[*]\n{\n" + txt + ";\n}" ;
+        String expanded = expandMacros(txt);
+        String code = "###Pure\n" +
+                "function repl::__internal__::run():Any[*]\n{\n" + expanded + ";\n}";
         PureModelContextData d = CLIENT.getModelState().parseWithTransient(code);
         PureModel pureModel = REPL_INTERFACE.compile(d);
         RichIterable<? extends Root_meta_pure_extension_Extension> extensions = PureCoreExtensionLoader.extensions().flatCollect(e->e.extraPureCoreExtensions(pureModel.getExecutionSupport()));
@@ -100,6 +104,20 @@ public class DataServer
             return res;
         }
         throw new RuntimeException(res.getClass() + "result type not supported");
+    }
+    private static final Pattern MACRO_PATTERN = Pattern.compile("macro\\{(.*?)\\}");
+    private static String expandMacros(String code)
+    {
+            Matcher matcher = MACRO_PATTERN.matcher(code);
+            StringBuffer result = new StringBuffer();
+            while (matcher.find())
+            {
+                String macroKey = matcher.group(1);
+                String replacement = MACROS.getOrDefault(macroKey, "macro{" + macroKey + "}");
+                matcher.appendReplacement(result, Matcher.quoteReplacement(replacement));
+            }
+            matcher.appendTail(result);
+            return result.toString();
     }
     @POST
     @Path("/execute")
@@ -116,6 +134,36 @@ public class DataServer
         {
             Map<String,Object> payload = OBJECT_MAPPER.readValue(request.getInputStream(), new TypeReference<Map<String, Object>>(){});
             String line = (String) payload.get("line");
+            if (line.trim().startsWith("macro "))
+            {
+                Pattern macroPattern = Pattern.compile("macro\\s+(\\w+)\\s*=\\s*(.+);?");
+                Matcher matcher = macroPattern.matcher(line);
+                if (matcher.matches())
+                {
+                    String name = matcher.group(1);
+                    String value = matcher.group(2).trim();
+                    MACROS.put(name, value);
+                    return Response.ok("Macro '" + name + "' defined.").build();
+                }
+                else
+                {
+                    return Response.status(400).entity("Invalid macro format. Use: macro name = value;").build();
+                }
+            }
+            else if (line.trim().startsWith("show_macros"))
+            {
+                StringBuilder sb = new StringBuilder("Defined Macros:\n\n");
+                for (Map.Entry<String, String> entry : MACROS.entrySet())
+                {
+                    sb.append("macro{").append(entry.getKey()).append("} = ").append(entry.getValue()).append("\n\n");
+                }
+                return Response.ok(sb.toString()).build();
+            }
+            else if (line.trim().startsWith("clear_macros"))
+            {
+                MACROS.clear();
+                return Response.ok("All macros cleared.").build();
+            }
             if(line.startsWith("load "))
             {
                 String[] tokens = line.split(" ");
