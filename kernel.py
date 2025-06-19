@@ -4,6 +4,15 @@ import datetime
 import json
 from ipykernel.kernelbase import Kernel
 from .magics import CELL_MAGICS, LINE_MAGICS
+from pygments.lexers import _mapping
+from pygments.lexer import Lexer
+from pygments import lexers
+import numpy as np
+from IPython.display import Audio
+import numpy as np
+import io
+import wave
+import base64
 
 class LegendPureKernel(Kernel):
     implementation = 'LegendPureKernel'
@@ -345,16 +354,45 @@ class LegendPureKernel(Kernel):
                     elapsed = time.time() - start
                     stream_content = {
                 'name': 'stdout',
-                'text': f"Loading csv data into table in DuckDB connection... {elapsed:.2f} seconds elapsed\n"
+                'text': f'\033[92mLoading csv data into table in DuckDB connection... {elapsed:.2f} seconds elapsed\n\033[0m'
                  }
                     self.send_response(self.iopub_socket, 'stream', stream_content)
                     self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
                     time.sleep(0.01)
                 stream_content = {
                 'name': 'stdout',
-                'text': f"Total Time Taken - {elapsed:.2f}s\n"
+                'text': f"\033[92mTotal Time Taken - {elapsed:.2f}s\n\033[0m"
                  }
                 self.send_response(self.iopub_socket, 'stream', stream_content)
+                # Generate a 1-second sine wave (440 Hz)
+                rate = 44100
+                t = np.linspace(0, 1, rate, False)
+                data = (np.sin(2 * np.pi * 440 * t) * 32767).astype(np.int16)
+                # Encode as WAV in memory
+                buffer = io.BytesIO()
+                with wave.open(buffer, 'wb') as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(rate)
+                    wf.writeframes(data.tobytes())
+                    # Base64 encode
+                    wav_base64 = base64.b64encode(buffer.getvalue()).decode('utf-8')
+                # Build display content
+                html = f"""
+                <audio autoplay>
+                <source src="data:audio/wav;base64,{wav_base64}" type="audio/wav">
+                Your browser does not support the audio element.
+                </audio>
+                """
+                display_content = {
+                    "data": {
+                        "text/html": html,
+                        "text/plain": "Beep Sound"
+                    },
+                    "metadata": {}
+                }
+                # Send it to the Jupyter frontend
+                self.send_response(self.iopub_socket, 'display_data', display_content)
             # Start the timer thread
             timer_thread = threading.Thread(target=show_running_time)
             timer_thread.start()
@@ -387,14 +425,14 @@ class LegendPureKernel(Kernel):
                     elapsed = time.time() - start
                     stream_content = {
                 'name': 'stdout',
-                'text': f"Exploring DataBase... {elapsed:.2f} seconds elapsed\n"
+                'text': f"\033[92mExploring DataBase... {elapsed:.2f} seconds elapsed\n\033[0m"
                  }
                     self.send_response(self.iopub_socket, 'stream', stream_content)
                     self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
                     time.sleep(0.01)
                 stream_content = {
                 'name': 'stdout',
-                'text': f"Total Time Taken - {elapsed:.2f}s\n"
+                'text': f"\033[92mTotal Time Taken - {elapsed:.2f}s\n\033[0m"
                  }
                 self.send_response(self.iopub_socket, 'stream', stream_content)
             # Start the timer thread
@@ -429,14 +467,14 @@ class LegendPureKernel(Kernel):
                     elapsed = time.time() - start
                     stream_content = {
                 'name': 'stdout',
-                'text': f"Dropping all tables... {elapsed:.2f} seconds elapsed\n"
+                'text': f"\033[92mDropping all tables... {elapsed:.2f} seconds elapsed\n\033[0m"
                  }
                     self.send_response(self.iopub_socket, 'stream', stream_content)
                     self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
                     time.sleep(0.01)
                 stream_content = {
                 'name': 'stdout',
-                'text': f"Total Time Taken - {elapsed:.2f}s\n"
+                'text': f"\033[92mTotal Time Taken - {elapsed:.2f}s\n\033[0m"
                  }
                 self.send_response(self.iopub_socket, 'stream', stream_content)
             # Start the timer thread
@@ -459,6 +497,130 @@ class LegendPureKernel(Kernel):
                 'payload': [],
                 'user_expressions': {}
             }
+        elif code.startswith("macro "):
+            import threading, time
+            from IPython.display import clear_output
+            # Setup stop event for timing thread
+            stop_event = threading.Event()
+            # Live timer function
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    stream_content = {
+                'name': 'stdout',
+                'text': f"\033[92mSetting up macro... {elapsed:.2f} seconds elapsed\n\033[0m"
+                    }
+                    self.send_response(self.iopub_socket, 'stream', stream_content)
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                stream_content = {
+                'name': 'stdout',
+                'text': f"\033[92mTotal Time Taken - {elapsed:.2f}s\n\033[0m"
+                    }
+                self.send_response(self.iopub_socket, 'stream', stream_content)
+            # Start the timer thread
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            # Make the API request
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            # Show result
+            output = response.text
+            stream_content = {'name': 'stdout', 'text': output}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("show_macros"):
+            import threading, time
+            from IPython.display import clear_output
+            # Setup stop event for timing thread
+            stop_event = threading.Event()
+            # Live timer function
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    stream_content = {
+                'name': 'stdout',
+                'text': f"\033[92mRetrieving macros... {elapsed:.2f} seconds elapsed\n\033[0m"
+                    }
+                    self.send_response(self.iopub_socket, 'stream', stream_content)
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                stream_content = {
+                'name': 'stdout',
+                'text': f"\033[92mTotal Time Taken - {elapsed:.2f}s\n\033[0m"
+                    }
+                self.send_response(self.iopub_socket, 'stream', stream_content)
+            # Start the timer thread
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            # Make the API request
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            # Show result
+            output = response.text
+            stream_content = {'name': 'stdout', 'text': output}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
+        elif code.startswith("clear_macros"):
+            import threading, time
+            from IPython.display import clear_output
+            # Setup stop event for timing thread
+            stop_event = threading.Event()
+            # Live timer function
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    stream_content = {
+                'name': 'stdout',
+                'text': f"\033[92mClearing macros... {elapsed:.2f} seconds elapsed\n\033[0m"
+                    }
+                    self.send_response(self.iopub_socket, 'stream', stream_content)
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                stream_content = {
+                'name': 'stdout',
+                'text': f"\033[92mTotal Time Taken - {elapsed:.2f}s\n\033[0m"
+                    }
+                self.send_response(self.iopub_socket, 'stream', stream_content)
+            # Start the timer thread
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            # Make the API request
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            # Show result
+            output = response.text
+            stream_content = {'name': 'stdout', 'text': output}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
         else:
             import pandas
             import threading, time
@@ -472,14 +634,14 @@ class LegendPureKernel(Kernel):
                     elapsed = time.time() - start
                     stream_content = {
                 'name': 'stdout',
-                'text': f"Data Quereying... {elapsed:.2f} seconds elapsed\n"
+                'text': f"\033[92mData Quereying... {elapsed:.2f} seconds elapsed\n\033[0m"
                  }
                     self.send_response(self.iopub_socket, 'stream', stream_content)
                     self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
                     time.sleep(0.01)
                 stream_content = {
                 'name': 'stdout',
-                'text': f"Total Time Taken - {elapsed:.2f}s\n"
+                'text': f"\033[92mTotal Time Taken - {elapsed:.2f}s\n\033[2m"
                  }
                 self.send_response(self.iopub_socket, 'stream', stream_content)
             # Start the timer thread
@@ -520,75 +682,71 @@ class LegendPureKernel(Kernel):
                 'user_expressions': {}
             }
     def do_complete(self, code, cursor_pos):
-        import os
-        import re
-
+        import os, re
         keywords = [
             'createtable', 'sql_to_json_line', 'sql_to_json_batch',
             'show_func_activators', 'sql_execute_line', 'sql_execute_batch',
             'pure_compile', 'insertrow', 'show_all_tables', 'get_schema_sql_line',
-            'db ', 'load ', 'cache ', 'graph ', 'show', 'showInAgGrid ',
-            'ext', 'loadProject', 'loadSnowflakeConnection ', 'drop_all_tables ','local::DuckDuckConnection',
-            'exploreSchemaFromConnection ', 'createStoreFromConnectionTable ', '#>{'
+            'db', 'load', 'cache', 'graph', 'show', 'showInAgGrid',
+            'ext', 'loadProject', 'loadSnowflakeConnection', 'drop_all_tables',
+            'exploreSchemaFromConnection', 'createStoreFromConnectionTable', '#>{'
         ]
-
-        duck_conn_suggestion = 'local::DuckDuckConnection'
+        connection_names = ['local::DuckDuckConnection', 'local::H2Connection']
         code_upto_cursor = code[:cursor_pos]
-        token = code_upto_cursor.split()[-1] if code_upto_cursor.split() else ''
-        stripped_code = code_upto_cursor.strip()
-
-        # ------------------ PATH COMPLETION ------------------
-        fs_match = re.search(r'(["\']?)(?P<path>(?:~|\.{0,2}/|/)[^\'"\s]*)$', code_upto_cursor)
-        if fs_match:
-            raw_path = fs_match.group("path")
-            base_dir = os.path.expanduser(os.path.dirname(raw_path) or ".")
-            prefix = os.path.basename(raw_path)
-
-            try:
-                entries = os.listdir(base_dir)
-            except Exception:
-                entries = []
-
-            matches = []
-            for e in entries:
-                if e.startswith(prefix) and e != prefix:
-                    full_path = os.path.join(base_dir, e)
-                    if os.path.isdir(full_path):
-                        e += "/"
-                    matches.append(e)
-
-            # Suggest only the suffix (not full path) for relative suggestions
-            cursor_start = cursor_pos - len(prefix)
-            cursor_end = cursor_pos
-
-            return {
-                "status": "ok",
-                "matches": matches,
-                "cursor_start": cursor_start,
-                "cursor_end": cursor_end,
-                "metadata": {}
-            }
-
-         # -------- Fallback to keyword completion --------
-        # Don't trigger keyword suggestions if the last token is empty (after space)
-        if token in keywords or token + " " in keywords:
-            # Already typed full keyword, no need to suggest
+        tokens = code_upto_cursor.strip().split()
+        token = tokens[-1] if tokens else ''
+        # 1. Suggest keyword if only starting to type (first word)
+        if len(tokens) == 1 and not code_upto_cursor.endswith(" "):
+            matches = [kw + ' ' for kw in keywords if kw.startswith(token)]
             return {
                 'status': 'ok',
-                'matches': [],
-                'cursor_start': cursor_pos,
+                'matches': matches,
+                'cursor_start': cursor_pos - len(token),
                 'cursor_end': cursor_pos,
                 'metadata': {},
             }
+        # 2. Check for file path suggestion (after `load` or `db`)
+        if tokens and tokens[0] in {"load", "db"}:
+            match = re.search(r'(["\']?)(?P<path>(?:~|\.{0,2}/|/)[^\'"\s]*)$', code_upto_cursor)
+            if match:
+                raw_path = match.group("path")
+                base_dir = os.path.dirname(os.path.expanduser(raw_path)) or "."
+                prefix = os.path.basename(raw_path)
+                try:
+                    entries = os.listdir(base_dir)
+                except Exception:
+                    entries = []
 
-        matches = [kw for kw in keywords if kw.startswith(token)]
+                matches = []
+                for entry in entries:
+                    if entry.startswith(prefix):
+                        full_path = os.path.join(base_dir, entry)
+                        matches.append(entry + ("/" if os.path.isdir(full_path) else " "))
+                return {
+                    "status": "ok",
+                    "matches": matches,
+                    "cursor_start": cursor_pos - len(prefix),
+                    "cursor_end": cursor_pos,
+                    "metadata": {}
+                }
+            # 3. If path ends in space and file exists, suggest connections
+            if os.path.exists(tokens[-1]) and code_upto_cursor.endswith(" "):
+                matches = [c + ' ' for c in connection_names]
+                return {
+                    'status': 'ok',
+                    'matches': matches,
+                    'cursor_start': cursor_pos,
+                    'cursor_end': cursor_pos,
+                    'metadata': {},
+                }
         return {
             'status': 'ok',
-            'matches': matches,
-            'cursor_start': cursor_pos - len(token),
+            'matches': [],
+            'cursor_start': cursor_pos,
             'cursor_end': cursor_pos,
             'metadata': {},
         }
+
 
 if __name__ == '__main__':
     from ipykernel.kernelapp import IPKernelApp
