@@ -13,28 +13,34 @@ import numpy as np
 import io
 import wave
 import base64
-from .pure_lexer import PureCustomLexer
 
-def register_custom_pure_lexer():
-    lexers.LEXERS['Pure'] = (
-        'pure_lexer',
-        'PureCustomLexer',
-        ('pure',),
-        ('*.pure',),
-        ('text/x-pure',)
-    )
-    _mapping.LEXERS['Pure'] = (
-        'pure_lexer',
-        'PureCustomLexer',
-        ('pure',),
-        ('*.pure',),
-        ('text/x-pure',)
-    )
-    lexers._lexer_cache.clear()  # Clear cache if needed
+from pygments.lexer import RegexLexer, words
+from pygments.style import Style
+from pygments.formatters import HtmlFormatter
+from pygments import highlight
 
+from pygments.token import Keyword, String, Number, Comment, Text
 
+class CustomKernelLexer(RegexLexer):
+    tokens = {
+        'root': [
+            # Commands
+            (words(('load', 'db', 'show_macros', 'clear_macros')), Keyword),
+            # Other syntax elements
+            (r'#.*$', Comment),
+            (r'"[^"]*"', String),
+            (r'\b\d+\b', Number),
+            (r'\s+', Text),
+        ]
+    }
 
-register_custom_pure_lexer()
+class CustomStyle(Style):
+    styles = {
+        Keyword: '#569CD6 bold',    # Blue commands
+        String: '#e6db74',          # Yellow strings
+        Number: '#ae81ff',          # Purple numbers
+        Comment: '#75715e italic',  # Gray comments
+    }
 
 
 
@@ -42,15 +48,17 @@ register_custom_pure_lexer()
 class LegendPureKernel(Kernel):
     implementation = 'LegendPureKernel'
     implementation_version = '0.1'
-    language = 'pure'
+    language = 'custom'
     language_version = '1.0'
     language_info = {
         'name': 'python',
-        'mimetype': 'text/x-pure',
+        'mimetype': 'text/x-custom',
         'file_extension': '.pure',
         'pygments_lexer': 'python'
     }
     banner = "FINOS Legend Kernel for Jupyter (via REST API)"
+
+
 
 
     def play_success_sound(self):
