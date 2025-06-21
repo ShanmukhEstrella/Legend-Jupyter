@@ -74,6 +74,7 @@ public class DataServer
     private static JLine3Completer COMPLETER ;
     private static LineReader LINE_READER;
     private static final Map<String, String> MACROS = new HashMap<>();
+
     private static PlanExecutor buildPlanExecutor()
     {
 
@@ -119,6 +120,34 @@ public class DataServer
             matcher.appendTail(result);
             return result.toString();
     }
+
+    @GET
+    @Path("/columns/{connection}/{table}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getColumns(@PathParam("connection") String conn, @PathParam("table") String table)
+    {
+        try
+        {
+            RelationalDatabaseConnection dbConn = ConnectionHelper.getDatabaseConnection(CLIENT.getModelState().parse(), conn);
+            try (Connection jdbc = ConnectionHelper.getConnection(dbConn, PLAN_EXECUTOR))
+            {
+                List<String> columns = new ArrayList<>();
+                try (ResultSet rs = jdbc.getMetaData().getColumns(null, null, table, null))
+                {
+                    while (rs.next())
+                    {
+                        columns.add(rs.getString("COLUMN_NAME"));
+                    }
+                }
+                return Response.ok(columns).build();
+            }
+        }
+        catch (Exception e)
+        {
+            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Collections.singletonMap("error", e.getMessage())).build();
+        }
+    }
+
     @POST
     @Path("/execute")
     public Response execute(@Context HttpServletRequest request, @Context HttpServletResponse response) throws Exception
@@ -220,6 +249,21 @@ public class DataServer
                     return Response.ok("Dropped tables: " + String.join(", ", tableNames)).build();
                 }
             }
+            else if (line.startsWith("get_tables "))
+            {
+                String[] tokens = line.split(" ");
+                if (tokens.length != 2)
+                {
+                    throw new RuntimeException("Usage: get_tables <connection>");
+                }
+                String connectionName = tokens[1];
+                RelationalDatabaseConnection databaseConnection = ConnectionHelper.getDatabaseConnection(CLIENT.getModelState().parse(), connectionName);
+                List<String> tableNames = ConnectionHelper.getTables(databaseConnection, PLAN_EXECUTOR)
+                            .map(t -> t.name)
+                            .collect(Collectors.toList());
+                return Response.ok(Collections.singletonMap("tables", tableNames)).type(MediaType.APPLICATION_JSON).build();
+            }
+
             else
             {
                 CLIENT.addCommandToHistory(line);
@@ -231,5 +275,6 @@ public class DataServer
         {
             return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Collections.singletonMap("error", e.getMessage())).type(MediaType.APPLICATION_JSON).build();
         }
+
     }
 }
