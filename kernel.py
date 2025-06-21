@@ -14,83 +14,182 @@ import io
 import wave
 import base64
 
-from pygments.lexer import RegexLexer, words
-from pygments.style import Style
-from pygments.formatters import HtmlFormatter
-from pygments import highlight
-
-from pygments.token import Keyword, String, Number, Comment, Text
-
-class CustomKernelLexer(RegexLexer):
-    tokens = {
-        'root': [
-            # Commands
-            (words(('load', 'db', 'show_macros', 'clear_macros')), Keyword),
-            # Other syntax elements
-            (r'#.*$', Comment),
-            (r'"[^"]*"', String),
-            (r'\b\d+\b', Number),
-            (r'\s+', Text),
-        ]
-    }
-
-class CustomStyle(Style):
-    styles = {
-        Keyword: '#569CD6 bold',    # Blue commands
-        String: '#e6db74',          # Yellow strings
-        Number: '#ae81ff',          # Purple numbers
-        Comment: '#75715e italic',  # Gray comments
-    }
-
-
-
-
 class LegendPureKernel(Kernel):
     implementation = 'LegendPureKernel'
     implementation_version = '0.1'
-    language = 'custom'
+    language = 'legend'
     language_version = '1.0'
     language_info = {
-        'name': 'python',
-        'mimetype': 'text/x-custom',
-        'file_extension': '.pure',
-        'pygments_lexer': 'python'
+    "name": "legend",
+    "mimetype": "text/x-legend",
+    "file_extension": ".lgd",
+    "codemirror_mode": "legend"
     }
     banner = "FINOS Legend Kernel for Jupyter (via REST API)"
+    tables = ["Not Null"]
 
 
 
 
-    def play_success_sound(self):
-        rate = 44100
-        t = np.linspace(0, 0.1, rate, False)
-        data = (np.sin(2 * np.pi * 440 * t) * 32767).astype(np.int16)
-        buffer = io.BytesIO()
-        with wave.open(buffer, 'wb') as wf:
-            wf.setnchannels(1)
-            wf.setsampwidth(2)
-            wf.setframerate(rate)
-            wf.writeframes(data.tobytes())
-        html = f"""<audio autoplay><source src="data:audio/wav;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"></audio>"""
-        self.send_response(self.iopub_socket, 'display_data', {
-            'data': {'text/html': html},
-            'metadata': {}
-        })
+    # def play_success_sound(self):
+    #     rate = 44100
+    #     t = np.linspace(0, 0.1, rate, False)
+    #     data = (np.sin(2 * np.pi * 440 * t) * 32767).astype(np.int16)
+    #     buffer = io.BytesIO()
+    #     with wave.open(buffer, 'wb') as wf:
+    #         wf.setnchannels(1)
+    #         wf.setsampwidth(2)
+    #         wf.setframerate(rate)
+    #         wf.writeframes(data.tobytes())
+    #     html = f"""<audio autoplay><source src="data:audio/wav;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"></audio>"""
+    #     self.send_response(self.iopub_socket, 'display_data', {
+    #         'data': {'text/html': html},
+    #         'metadata': {}
+    #     })
 
 
+
+    # def inject_custom_highlighting(self):
+    #     if hasattr(self, "_highlight_injected"):
+    #         return  # Don't inject again
+    #     js_code = """
+    #     (function waitForRequire() {
+    #         if (typeof require !== "undefined") {
+    #             require(["codemirror/addon/mode/simple", "notebook/js/codecell"], function(_, codecell) {
+    #                 CodeMirror.defineSimpleMode("legendmode", {
+    #                     start: [
+    #                         {regex: /\\b(load|db|drop_all_tables|show_macros|clear_macros)\\b/, token: "keyword"},
+    #                         {regex: /"[^"]*"/, token: "string"},
+    #                         {regex: /\\b\\d+\\b/, token: "number"},
+    #                         {regex: /#.*/, token: "comment"},
+    #                     ],
+    #                     meta: { lineComment: "#" }
+    #                 });
+
+    #                 Jupyter.notebook.get_cells().forEach(function(cell) {
+    #                     if (cell.cell_type === "code") {
+    #                         cell.code_mirror.setOption("mode", "legendmode");
+    #                     }
+    #                 });
+    #             });
+    #         } else {
+    #             setTimeout(waitForRequire, 50);
+    #         }
+    #     })();
+    #     """
+    #     css_code = """
+    #     <style>
+    #         .cm-keyword { color: #569CD6; font-weight: bold; }
+    #         .cm-string  { color: #e6db74; }
+    #         .cm-number  { color: #ae81ff; }
+    #         .cm-comment { color: #6a9955; font-style: italic; }
+    #     </style>
+    #     """
+    #     self.send_response(self.iopub_socket, 'display_data', {
+    #         'data': {'application/javascript': js_code},
+    #         'metadata': {}
+    #     })
+    #     self.send_response(self.iopub_socket, 'display_data', {
+    #         'data': {'text/html': css_code},
+    #         'metadata': {}
+    #     })
+    #     self._highlight_injected = True
 
 
 
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
+        # Inject CodeMirror highlighting once per session
+#         js_code = """
+# (() => {
+#     console.log("🟢 Highlighting cells and keywords");
+
+#     const allCodeCells = document.querySelectorAll('.jp-Cell.code');
+
+#     allCodeCells.forEach(cell => {
+#         const editor = cell.querySelector('.jp-InputArea-editor');
+#         if (!editor) return;
+
+#         const codeText = editor.innerText || '';
+#         if (codeText.toLowerCase().includes("load")) {
+#             // Highlight cell background
+#             cell.style.backgroundColor = "#fff8dc";  // light yellow
+
+#             // Highlight 'load' keyword in green
+#             const highlighted = codeText.replace(/\\b(load)\\b/gi, '<span style="color: green; font-weight: bold;">$1</span>');
+#             editor.innerHTML = highlighted;
+#         }
+#     });
+# })();
+# """
+#         self.send_response(self.iopub_socket, 'display_data', {
+#             'data': {'application/javascript': js_code},
+#             'metadata': {}
+#         })
+
+
+
+
         magic_line, *cell_lines = code.splitlines()
         cell_code = "\n".join(cell_lines)
 
 
 
+        if code.startswith("start_legend"):
+            import threading, time
+            from IPython.display import clear_output
+            stop_event = threading.Event()
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    s = HTML(f"<div style='color:  green;'>Activating Legend Features... {elapsed:.2f} seconds elapsed\n</div>")
+                    self.send_response(self.iopub_socket,
+                        'display_data',
+                        {
+                            'data': {
+                                'text/html': str(s.data)
+                            },
+                            'metadata': {}
+                        }
+                    )
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                s = HTML(f"<div style='color:  green;'>Legend Features Activated in - {elapsed:.2f}s\n</div>")
+                self.send_response(self.iopub_socket,
+                    'display_data',
+                    {
+                        'data': {
+                            'text/html': str(s.data)
+                        },
+                        'metadata': {}
+                    }
+                )
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            connection_name = "local::DuckDuckConnection"
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": "get_tables " + connection_name})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            output = response.json()
+            self.tables = ["Not Null"]
+            for x in output["tables"]:
+                self.tables.append("#>{local::DuckDuckDatabase." + str(x)  + "}#")
+            stream_content = {'name': 'stdout', 'text': ""}
+            self.send_response(self.iopub_socket, 'stream', stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
 
 
 
-        if code.startswith("%%"):
+
+
+        elif code.startswith("%%"):
             magic_name = magic_line[2:]
             if magic_name in CELL_MAGICS:
                 output = CELL_MAGICS[magic_name](cell_code)
@@ -648,10 +747,11 @@ class LegendPureKernel(Kernel):
             timer_thread.start()
             try:
                 response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+                response2 = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": "get_tables " + "local::DuckDuckConnection"})
             finally:
                 stop_event.set()
                 timer_thread.join()
-            self.play_success_sound()
+            # self.play_success_sound()
             if(response.headers.get('Content-Type') == 'application/json'):
                 output = response.json()
                 s = HTML(f"<div style='color: red;'>{output["error"]}</div>")
@@ -670,6 +770,10 @@ class LegendPureKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
+            output2 = response2.json()
+            self.tables = ["Not Null"]
+            for x in output2["tables"]:
+                self.tables.append("#>{local::DuckDuckDatabase." + str(x)  + "}#")
             output = response.text
             stream_content = {'name': 'stdout', 'text': output}
             self.send_response(self.iopub_socket, 'stream', stream_content)
@@ -800,12 +904,13 @@ class LegendPureKernel(Kernel):
             timer_thread.start()
             try:
                 response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+                response2 = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": "get_tables " + "local::DuckDuckConnection"})
             finally:
                 stop_event.set()
                 timer_thread.join()
             if(response.headers.get('Content-Type') == 'application/json'):
                 output = response.json()
-                s = HTML(f"<div style='color: red;'>Error: {output["error"]}</div>")
+                s = HTML(f"<div style='color: red;'>{output["error"]}</div>")
                 self.send_response(self.iopub_socket,
                     'display_data',
                     {
@@ -821,6 +926,10 @@ class LegendPureKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
+            output2 = response2.json()
+            self.tables = ["Not Null"]
+            for x in output2["tables"]:
+                self.tables.append("#>{local::DuckDuckDatabase." + str(x)  + "}#")
             output = response.text
             stream_content = {'name': 'stdout', 'text': output}
             self.send_response(self.iopub_socket, 'stream', stream_content)
@@ -1031,6 +1140,18 @@ class LegendPureKernel(Kernel):
 
 
 
+        elif code.startswith("get_tables "):
+            base_url = "http://127.0.0.1:9095/api/server/execute"
+            response = requests.post(base_url, json={"line": magic_line})
+            output = response.json()
+            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            self.send_response(self.iopub_socket, 'stream',stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
 
 
 
@@ -1039,8 +1160,7 @@ class LegendPureKernel(Kernel):
 
 
 
-
-        else:
+        elif code.startswith("#>"):
             import pandas
             import threading, time
             from IPython.display import clear_output
@@ -1113,7 +1233,7 @@ class LegendPureKernel(Kernel):
                 'user_expressions': {}
             }
         
-
+           
 
 
 
@@ -1129,12 +1249,40 @@ class LegendPureKernel(Kernel):
             'pure_compile', 'insertrow', 'show_all_tables', 'get_schema_sql_line',
             'db', 'load', 'cache', 'graph', 'show', 'showInAgGrid',
             'ext', 'loadProject', 'loadSnowflakeConnection', 'drop_all_tables',
-            'exploreSchemaFromConnection', 'createStoreFromConnectionTable', '#>{'
+            'exploreSchemaFromConnection', 'createStoreFromConnectionTable'
         ]
-        connection_names = ['local::DuckDuckConnection', 'local::H2Connection']
+        connection_names = ['local::DuckDuckConnection']
         code_upto_cursor = code[:cursor_pos]
         tokens = code_upto_cursor.strip().split()
         token = tokens[-1] if tokens else ''
+        if(len(code_upto_cursor)>=2 and code_upto_cursor[-1]==">" and code_upto_cursor[-2]=="-"):
+            suggestions = ["filter(", "groupby(", "select(","from(local::DuckDuckRuntime)"]
+            return {
+                'matches': suggestions,
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
+        if(len(code_upto_cursor)>=2 and code_upto_cursor[-1]=="|"):
+            s = code_upto_cursor[-2]
+            suggestions = ["$"+s+"."]
+            return {
+                'matches': suggestions,
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
+        if code_upto_cursor.strip().startswith("#>"):
+            suggestions=self.tables
+            return {
+                'matches': suggestions,
+                'cursor_start': code_upto_cursor.find("#>"),
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
         if tokens and tokens[0] in {'load', 'db'} and code_upto_cursor.endswith(" "):
             if len(tokens) >= 2:
                 last_path = os.path.expanduser(tokens[1])
@@ -1155,6 +1303,8 @@ class LegendPureKernel(Kernel):
             }
         if len(tokens) == 1 and not code_upto_cursor.endswith(" "):
             matches = [kw + ' ' for kw in keywords if kw.startswith(token)]
+            if('/' in  matches):
+                matches = connection_names
             return {
                 'status': 'ok',
                 'matches': matches,
@@ -1178,6 +1328,8 @@ class LegendPureKernel(Kernel):
                     if entry.startswith(prefix):
                         full_entry = entry + ("/" if os.path.isdir(os.path.join(base_dir, entry)) else " ")
                         matches.append(full_entry)
+                if('/' in  matches):
+                    matches = connection_names
                 return {
                     'status': 'ok',
                     'matches': matches,
