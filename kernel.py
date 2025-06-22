@@ -176,8 +176,6 @@ class LegendPureKernel(Kernel):
             self.tables = ["Not Null"]
             for x in output["tables"]:
                 self.tables.append("#>{local::DuckDuckDatabase." + str(x)  + "}#")
-            stream_content = {'name': 'stdout', 'text': ""}
-            self.send_response(self.iopub_socket, 'stream', stream_content)
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
@@ -1152,6 +1150,24 @@ class LegendPureKernel(Kernel):
                 'payload': [],
                 'user_expressions': {}
             }
+        
+
+
+
+        
+        elif code.startswith("get_attributes "):
+                    base_url = "http://127.0.0.1:9095/api/server/execute"
+                    response = requests.post(base_url, json={"line": magic_line})
+                    output = response.json()
+                    stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+                    self.send_response(self.iopub_socket, 'stream',stream_content)
+                    return {
+                        'status': 'ok',
+                        'execution_count': self.execution_count,
+                        'payload': [],
+                        'user_expressions': {}
+                    }
+
 
 
 
