@@ -121,33 +121,6 @@ public class DataServer
             return result.toString();
     }
 
-    @GET
-    @Path("/columns/{connection}/{table}")
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response getColumns(@PathParam("connection") String conn, @PathParam("table") String table)
-    {
-        try
-        {
-            RelationalDatabaseConnection dbConn = ConnectionHelper.getDatabaseConnection(CLIENT.getModelState().parse(), conn);
-            try (Connection jdbc = ConnectionHelper.getConnection(dbConn, PLAN_EXECUTOR))
-            {
-                List<String> columns = new ArrayList<>();
-                try (ResultSet rs = jdbc.getMetaData().getColumns(null, null, table, null))
-                {
-                    while (rs.next())
-                    {
-                        columns.add(rs.getString("COLUMN_NAME"));
-                    }
-                }
-                return Response.ok(columns).build();
-            }
-        }
-        catch (Exception e)
-        {
-            return Response.status(Response.Status.INTERNAL_SERVER_ERROR).entity(Collections.singletonMap("error", e.getMessage())).build();
-        }
-    }
-
     @POST
     @Path("/execute")
     public Response execute(@Context HttpServletRequest request, @Context HttpServletResponse response) throws Exception
@@ -249,7 +222,7 @@ public class DataServer
                     return Response.ok("Dropped tables: " + String.join(", ", tableNames)).build();
                 }
             }
-            else if (line.startsWith("get_tables "))
+            else if (line.startsWith("get_tables"))
             {
                 String[] tokens = line.split(" ");
                 if (tokens.length != 2)
@@ -263,6 +236,67 @@ public class DataServer
                             .collect(Collectors.toList());
                 return Response.ok(Collections.singletonMap("tables", tableNames)).type(MediaType.APPLICATION_JSON).build();
             }
+            else if (line.startsWith("get_attributes"))
+            {
+                // Extract everything after the command
+                String fullRef = line.substring("get_attributes".length()).trim();
+
+                // Expect connectionName.tableName
+                int dotIndex = fullRef.lastIndexOf('.');
+                if (dotIndex == -1)
+                {
+                    throw new RuntimeException("Usage: get_attributes <connectionName>.<tableName>");
+                }
+
+                String connectionName = fullRef.substring(0, dotIndex);
+                String tableName = fullRef.substring(dotIndex + 1);
+
+                // Step 1: Get database connection
+                RelationalDatabaseConnection databaseConnection =
+                        ConnectionHelper.getDatabaseConnection(CLIENT.getModelState().parse(), connectionName);
+
+                // Step 2: Get tables using ConnectionHelper
+                List<?> tables = ConnectionHelper.getTables(databaseConnection, PLAN_EXECUTOR)
+                        .collect(Collectors.toList());
+
+                // Step 3: Find matching table by name
+                Object matchingTable = tables.stream()
+                        .filter(t -> {
+                            try {
+                                java.lang.reflect.Field nameField = t.getClass().getField("name");
+                                String name = (String) nameField.get(t);
+                                return name.equalsIgnoreCase(tableName);
+                            } catch (Exception e) {
+                                return false;
+                            }
+                        })
+                        .findFirst()
+                        .orElseThrow(() -> new RuntimeException("Table '" + tableName + "' not found in connection '" + connectionName + "'"));
+
+                // Step 4: Extract attribute names using reflection
+                List<String> attributeNames = new ArrayList<>();
+                try {
+                    java.lang.reflect.Field columnsField = matchingTable.getClass().getField("columns");
+                    List<?> columns = (List<?>) columnsField.get(matchingTable);
+
+                    for (Object col : columns)
+                    {
+                        java.lang.reflect.Field colNameField = col.getClass().getField("name");
+                        String colName = (String) colNameField.get(col);
+                        attributeNames.add(colName);
+                    }
+                }
+                catch (Exception e)
+                {
+                    throw new RuntimeException("Error extracting column names: " + e.getMessage(), e);
+                }
+
+                // Step 5: Return as JSON
+                return Response.ok(Collections.singletonMap("attributes", attributeNames))
+                        .type(MediaType.APPLICATION_JSON)
+                        .build();
+            }
+
 
             else
             {
