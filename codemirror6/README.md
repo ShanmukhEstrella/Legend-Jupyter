@@ -29,4 +29,4 @@ Start working upon:
 jupyter lab
 ```
 
-See [RELEASE](RELEASE.md)
+Note: Jupyter notebook don't have support for the custom syntax highlighting.
