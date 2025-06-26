@@ -1,142 +1,119 @@
+
+import importlib.util
+import logging
+import os
+import sys
 import ast
 import requests
 import datetime
 import json
+import html
 from ipykernel.kernelbase import Kernel
 from .magics import CELL_MAGICS, LINE_MAGICS
 from pygments.lexers import _mapping
 from pygments.lexer import Lexer
 from pygments import lexers
 import numpy as np
-from IPython.display import HTML
 import numpy as np
 import io
 import wave
 import base64
+from inspect import getmembers, isclass
+from ipykernel.kernelbase import Kernel
+from jupyter_core.paths import jupyter_config_path
+from traitlets import Bool, Dict, Unicode
+from traitlets.config.loader import ConfigFileNotFound, PyFileConfigLoader
 
-class LegendPureKernel(Kernel):
-    implementation = 'LegendPureKernel'
-    implementation_version = '0.1'
-    language = 'legend'
-    language_version = '1.0'
+
+class LegendKernel(Kernel):
+    kernel_name = 'legend_kernel'
+    implementation = kernel_name
+    implementation_version = '1.0'
     language_info = {
-    "name": "legend",
-    "mimetype": "text/x-legend",
-    "file_extension": ".lgd",
-    "codemirror_mode": "legend"
+        'name': 'legend',
+        'file_extension': '.lgd',
+        'mimetype': 'text/x-legend',
+        'codemirror_mode': 'legend',
     }
-    banner = "FINOS Legend Kernel for Jupyter (via REST API)"
-    tables = ["Not Null"]
+    banner = kernel_name
 
 
 
 
-    # def play_success_sound(self):
-    #     rate = 44100
-    #     t = np.linspace(0, 0.1, rate, False)
-    #     data = (np.sin(2 * np.pi * 440 * t) * 32767).astype(np.int16)
-    #     buffer = io.BytesIO()
-    #     with wave.open(buffer, 'wb') as wf:
-    #         wf.setnchannels(1)
-    #         wf.setsampwidth(2)
-    #         wf.setframerate(rate)
-    #         wf.writeframes(data.tobytes())
-    #     html = f"""<audio autoplay><source src="data:audio/wav;base64,{base64.b64encode(buffer.getvalue()).decode('utf-8')}"></audio>"""
-    #     self.send_response(self.iopub_socket, 'display_data', {
-    #         'data': {'text/html': html},
-    #         'metadata': {}
-    #     })
+
+    def parse_db_output(self, text: str):
+        lines = [line.strip() for line in text.strip().splitlines() if line.strip()]
+        result = {
+            'database': None,
+            'tables': []
+        }
+        current_table = None
+        inside_table = False
+        for line in lines:
+            if line.startswith("Database"):
+                result['database'] = line.split("Database", 1)[1].strip()
+            elif line.startswith("Table"):
+                table_name = line.split("Table", 1)[1].strip()
+                current_table = {'name': table_name, 'columns': []}
+                inside_table = True
+            elif line == ')':
+                if inside_table and current_table:
+                    result['tables'].append(current_table)
+                    current_table = None
+                    inside_table = False
+            elif inside_table:
+                if ',' in line:
+                    line = line[:-1]  # remove trailing comma
+                if ' ' in line:
+                    col_name, col_type = line.split(None, 1)
+                    current_table['columns'].append({'name': col_name, 'type': col_type})
+        return result
+    
 
 
 
-    # def inject_custom_highlighting(self):
-    #     if hasattr(self, "_highlight_injected"):
-    #         return  # Don't inject again
-    #     js_code = """
-    #     (function waitForRequire() {
-    #         if (typeof require !== "undefined") {
-    #             require(["codemirror/addon/mode/simple", "notebook/js/codecell"], function(_, codecell) {
-    #                 CodeMirror.defineSimpleMode("legendmode", {
-    #                     start: [
-    #                         {regex: /\\b(load|db|drop_all_tables|show_macros|clear_macros)\\b/, token: "keyword"},
-    #                         {regex: /"[^"]*"/, token: "string"},
-    #                         {regex: /\\b\\d+\\b/, token: "number"},
-    #                         {regex: /#.*/, token: "comment"},
-    #                     ],
-    #                     meta: { lineComment: "#" }
-    #                 });
 
-    #                 Jupyter.notebook.get_cells().forEach(function(cell) {
-    #                     if (cell.cell_type === "code") {
-    #                         cell.code_mirror.setOption("mode", "legendmode");
-    #                     }
-    #                 });
-    #             });
-    #         } else {
-    #             setTimeout(waitForRequire, 50);
-    #         }
-    #     })();
-    #     """
-    #     css_code = """
-    #     <style>
-    #         .cm-keyword { color: #569CD6; font-weight: bold; }
-    #         .cm-string  { color: #e6db74; }
-    #         .cm-number  { color: #ae81ff; }
-    #         .cm-comment { color: #6a9955; font-style: italic; }
-    #     </style>
-    #     """
-    #     self.send_response(self.iopub_socket, 'display_data', {
-    #         'data': {'application/javascript': js_code},
-    #         'metadata': {}
-    #     })
-    #     self.send_response(self.iopub_socket, 'display_data', {
-    #         'data': {'text/html': css_code},
-    #         'metadata': {}
-    #     })
-    #     self._highlight_injected = True
+
+
+
+
+    def render_database_ui(self,data):
+        db_name = data.get("database", "Unknown")
+        tables = data.get("tables", [])
+
+        html_parts = [f"<details open><summary><b>Database: {html.escape(db_name)}</b></summary><div style='margin-left: 20px;'>"]
+
+        for table in tables:
+            table_name = table.get("name", "Unnamed Table")
+            columns = table.get("columns", [])
+            html_parts.append(f"<details><summary><b>Table: {html.escape(table_name)}</b></summary><div style='margin-left: 20px;'>")
+
+            # Table of columns
+            html_parts.append("<table border='1' style='border-collapse: collapse;'>")
+            html_parts.append("<tr><th>Column Name</th><th>Type</th></tr>")
+            for col in columns:
+                col_name = html.escape(col.get("name", ""))
+                col_type = html.escape(col.get("type", ""))
+                html_parts.append(f"<tr><td>{col_name}</td><td>{col_type}</td></tr>")
+            html_parts.append("</table></div></details>")
+
+        html_parts.append("</div></details>")
+        return "\n".join(html_parts)
+
+
+
+
+
 
 
 
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
-        # Inject CodeMirror highlighting once per session
-#         js_code = """
-# (() => {
-#     console.log("🟢 Highlighting cells and keywords");
-
-#     const allCodeCells = document.querySelectorAll('.jp-Cell.code');
-
-#     allCodeCells.forEach(cell => {
-#         const editor = cell.querySelector('.jp-InputArea-editor');
-#         if (!editor) return;
-
-#         const codeText = editor.innerText || '';
-#         if (codeText.toLowerCase().includes("load")) {
-#             // Highlight cell background
-#             cell.style.backgroundColor = "#fff8dc";  // light yellow
-
-#             // Highlight 'load' keyword in green
-#             const highlighted = codeText.replace(/\\b(load)\\b/gi, '<span style="color: green; font-weight: bold;">$1</span>');
-#             editor.innerHTML = highlighted;
-#         }
-#     });
-# })();
-# """
-#         self.send_response(self.iopub_socket, 'display_data', {
-#             'data': {'application/javascript': js_code},
-#             'metadata': {}
-#         })
-
-
-
-
         magic_line, *cell_lines = code.splitlines()
         cell_code = "\n".join(cell_lines)
-
-
-
         if code.startswith("start_legend"):
             import threading, time
             from IPython.display import clear_output
+            from IPython.display import HTML
             stop_event = threading.Event()
             def show_running_time():
                 start = time.time()
@@ -234,6 +211,7 @@ class LegendPureKernel(Kernel):
 
             
         elif code.startswith("sql_to_json_line"):
+            from IPython.display import HTML
             headers = {"Content-Type": "text/plain"}
             response = requests.post("http://127.0.0.1:9095/api/sql/v1/grammar/grammarToJson",data=cell_code, headers=headers)
             output = response.json()
@@ -268,6 +246,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("sql_to_json_batch"):
+            from IPython.display import HTML
             headers = {"Content-Type": "application/json"}
             queries = [q.strip() for q in cell_code.split(";") if q.strip()]
             payload ={
@@ -310,6 +289,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("show_func_activators"):
+            from IPython.display import HTML
             headers = {"Content-Type": "text/plain"}
             response = requests.get("http://127.0.0.1:9095/api/functionActivator/list")
             output = response.json()
@@ -343,6 +323,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("create "):
+            from IPython.display import HTML
             headers = {"Content-Type": "text/plain"}
             response = requests.post("http://127.0.0.1:9095/api/data/createtable",data=magic_line, headers=headers)
             output = response.json()
@@ -388,6 +369,7 @@ class LegendPureKernel(Kernel):
 
         
         elif code.startswith("insertrow"):
+            from IPython.display import HTML
             headers = {"Content-Type": "application/json"}
             if '->' not in cell_code:
                 s = HTML("<div style='color: red;'>Error: Improper usage of command</div>")
@@ -497,6 +479,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("delete_row"):
+            from IPython.display import HTML
             headers = {"Content-Type": "text/plain"}
             response = requests.post("http://127.0.0.1:9095/api/data/deleterow", data=cell_code, headers=headers)
             output = response.json()
@@ -541,6 +524,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("show_table"):
+            from IPython.display import HTML
             headers = {"Content-Type": "text/plain"}
             response = requests.post("http://127.0.0.1:9095/api/data/fetchtable",data=cell_code,headers=headers)
             output = response.json()
@@ -602,6 +586,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("show_all_tables"):
+            from IPython.display import HTML
             response = requests.get("http://127.0.0.1:9095/api/data/showtables")
             output = response.json()
             if "error" in output:
@@ -641,6 +626,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("load duckdb"):
+            from IPython.display import HTML
             headers = {"Content-Type": "text/plain"}
             response = requests.post("http://127.0.0.1:9095/api/data/duckdb/load",data=cell_code, headers=headers)
             output = response.text
@@ -661,6 +647,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("query duckdb"):
+            from IPython.display import HTML
             headers = {"Content-Type": "application/json"}
             magic_line_new = magic_line.split()
             payload = {
@@ -712,6 +699,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("load "):
+            from IPython.display import HTML
             import threading, time
             from IPython.display import clear_output
             stop_event = threading.Event()
@@ -793,6 +781,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("db"):
+            from IPython.display import HTML
             import threading, time
             from IPython.display import clear_output
             stop_event = threading.Event()
@@ -848,14 +837,32 @@ class LegendPureKernel(Kernel):
                     'user_expressions': {}
                 }
             output = response.text
-            stream_content = {'name': 'stdout', 'text': output}
-            self.send_response(self.iopub_socket, 'stream', stream_content)
-            return {
+            try:
+                structured = self.parse_db_output(output)
+                html_str = self.render_database_ui(structured)
+                self.send_response(self.iopub_socket, 'display_data', {
+                    'data': {'text/html': html_str},
+                    'metadata': {}
+                })
+                return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
-            }
+                }
+            except Exception as e:
+                from IPython.display import HTML
+                s = HTML(f"<div style='color: red;'>Parsing/Rendering failed: {html.escape(str(e))}</div>")
+                self.send_response(self.iopub_socket, 'display_data', {
+                    'data': {'text/html': str(s.data)},
+                    'metadata': {}
+                })
+                return {
+                'status': 'error',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+                 }
         
 
 
@@ -869,6 +876,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("drop_all_tables"):
+            from IPython.display import HTML
             import threading, time
             from IPython.display import clear_output
             stop_event = threading.Event()
@@ -953,6 +961,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("macro "):
+            from IPython.display import HTML
             import threading, time
             from IPython.display import clear_output
             stop_event = threading.Event()
@@ -1027,6 +1036,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("show_macros"):
+            from IPython.display import HTML
             import threading, time
             from IPython.display import clear_output
             stop_event = threading.Event()
@@ -1088,6 +1098,7 @@ class LegendPureKernel(Kernel):
 
         
         elif code.startswith("clear_macros"):
+            from IPython.display import HTML
             import threading, time
             from IPython.display import clear_output
             stop_event = threading.Event()
@@ -1139,10 +1150,48 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("get_tables "):
-            base_url = "http://127.0.0.1:9095/api/server/execute"
-            response = requests.post(base_url, json={"line": magic_line})
+            from IPython.display import HTML
+            import threading, time
+            from IPython.display import clear_output
+            stop_event = threading.Event()
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    s = HTML(f"<div style='color:  green;'>Fetching tables... {elapsed:.2f} seconds elapsed\n</div>")
+                    self.send_response(self.iopub_socket,
+                        'display_data',
+                        {
+                            'data': {
+                                'text/html': str(s.data)
+                            },
+                            'metadata': {}
+                        }
+                    )
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                s = HTML(f"<div style='color:  green;'>Tables Fetched in - {elapsed:.2f}s\n</div>")
+                self.send_response(self.iopub_socket,
+                    'display_data',
+                    {
+                        'data': {
+                            'text/html': str(s.data)
+                        },
+                        'metadata': {}
+                    }
+                )
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
             output = response.json()
-            stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
+            s = ""
+            for x in output["tables"]:
+                s = s+x+"\n"
+            stream_content = {'name': 'stdout', 'text': s}
             self.send_response(self.iopub_socket, 'stream',stream_content)
             return {
                 'status': 'ok',
@@ -1156,17 +1205,55 @@ class LegendPureKernel(Kernel):
 
         
         elif code.startswith("get_attributes "):
-                    base_url = "http://127.0.0.1:9095/api/server/execute"
-                    response = requests.post(base_url, json={"line": magic_line})
-                    output = response.json()
-                    stream_content = {'name': 'stdout', 'text': json.dumps(output, indent=2)}
-                    self.send_response(self.iopub_socket, 'stream',stream_content)
-                    return {
-                        'status': 'ok',
-                        'execution_count': self.execution_count,
-                        'payload': [],
-                        'user_expressions': {}
+            from IPython.display import HTML
+            import threading, time
+            from IPython.display import clear_output
+            stop_event = threading.Event()
+            def show_running_time():
+                start = time.time()
+                while not stop_event.is_set():
+                    elapsed = time.time() - start
+                    s = HTML(f"<div style='color:  green;'>Fetching attributes... {elapsed:.2f} seconds elapsed\n</div>")
+                    self.send_response(self.iopub_socket,
+                        'display_data',
+                        {
+                            'data': {
+                                'text/html': str(s.data)
+                            },
+                            'metadata': {}
+                        }
+                    )
+                    self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                    time.sleep(0.01)
+                s = HTML(f"<div style='color:  green;'>Attributes Fetched in - {elapsed:.2f}s\n</div>")
+                self.send_response(self.iopub_socket,
+                    'display_data',
+                    {
+                        'data': {
+                            'text/html': str(s.data)
+                        },
+                        'metadata': {}
                     }
+                )
+            timer_thread = threading.Thread(target=show_running_time)
+            timer_thread.start()
+            try:
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+            finally:
+                stop_event.set()
+                timer_thread.join()
+            output = response.json()
+            s=""
+            for x in output["attributes"]:
+                s = s + x + "\n"
+            stream_content = {'name': 'stdout', 'text': s}
+            self.send_response(self.iopub_socket, 'stream',stream_content)
+            return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+            }
 
 
 
@@ -1177,6 +1264,7 @@ class LegendPureKernel(Kernel):
 
 
         elif code.startswith("#>"):
+            from IPython.display import HTML
             import pandas
             import threading, time
             from IPython.display import clear_output
@@ -1363,11 +1451,7 @@ class LegendPureKernel(Kernel):
 
 
 
+# if __name__ == '__main__':
+#     from ipykernel.kernelapp import IPKernelApp
+#     IPKernelApp.launch_instance(kernel_class=LegendKernel)
 
-
-
-
-
-if __name__ == '__main__':
-    from ipykernel.kernelapp import IPKernelApp
-    IPKernelApp.launch_instance(kernel_class=LegendPureKernel)
