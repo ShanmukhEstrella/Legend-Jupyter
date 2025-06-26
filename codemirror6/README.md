@@ -1,4 +1,4 @@
-# legend-coloring
+# Legend-coloring using CodeMirrorv6
 
 A JupyterLab extension.
 
