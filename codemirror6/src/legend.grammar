@@ -1,17 +1,28 @@
 @top Program { Statement* }
 
 Statement {
-  Keyword | Number | Operator | LineComment | Identifier | Parens
+  KeywordStmt | NewOneStmt1 | NewOneStmt2 | NumberStmt | OperatorStmt | CommentStmt | IdentifierStmt | ParensStmt
 }
+
+KeywordStmt { Keyword }
+NewOneStmt1 { NewOne1}
+NewOneStmt2 { NewOne2}
+NumberStmt { Number }
+OperatorStmt { Operator }
+CommentStmt { LineComment }
+IdentifierStmt { Identifier }
+ParensStmt { Parens }
 
 @skip { whitespace }
 
 @tokens {
-  whitespace { "[ \\t\\r\\n]+" }
-  LineComment { "#[^\\n]*" }
-  Keyword { "load" | "db" | "drop_all_tables" }
+  whitespace { "[ \t\r\n]+" }
+  LineComment { "#[^\n]*" }
+  Keyword { "filter" | "groupBy" | "select"}
+  NewOne1 { "load" | "db" | "drop_all_tables" }
+  NewOne2 {"local" | "DuckDuckDatabase" | "DuckDuckConnection"}
   Number { "[0-9]+" }
-  Operator { "+" | "-" | "*" | "/" | "=" | "<" | ">" | "!" }
+  Operator { "+" | "-" | "*" | "/" | "=" | "<" | ">" | "!" | "::" | "->" }
   Identifier { "[a-zA-Z][a-zA-Z0-9]*" }
   Parens { "(" | ")" }
 }
