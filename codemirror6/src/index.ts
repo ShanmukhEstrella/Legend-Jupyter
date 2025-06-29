@@ -1,5 +1,6 @@
 import { JupyterFrontEnd, JupyterFrontEndPlugin } from '@jupyterlab/application';
 import { IEditorLanguageRegistry } from '@jupyterlab/codemirror';
+import { IThemeManager } from '@jupyterlab/apputils';
 import {
   LRLanguage,
   LanguageSupport,
@@ -7,15 +8,16 @@ import {
   syntaxHighlighting
 } from '@codemirror/language';
 import { Tag, styleTags, tags as t } from '@lezer/highlight';
-
-// Import the generated Lezer parser
 import { parser } from './legend.grammar.js';
 
-// Define a custom tag for the `NewOne` token
+// ---------------------------
+// 1. Custom highlight tags
+// ---------------------------
 const myNewTag1: Tag = Tag.define();
 const myNewTag2: Tag = Tag.define();
-
-// Define the language with style tag mapping
+// ---------------------------
+// 2. Define Legend language
+// ---------------------------
 const LegendLanguage = LRLanguage.define({
   parser: parser.configure({
     props: [
@@ -36,31 +38,55 @@ const LegendLanguage = LRLanguage.define({
   }
 });
 
-//  Define custom styles, including your new tag
-const legendHighlightStyle = HighlightStyle.define([
-  { tag: myNewTag1, color: '#023961', fontWeight: 'bold' },
-  { tag: myNewTag2, color: '#964B00', fontWeight: 'bold' }     
+// ---------------------------
+// 3. Highlight styles
+// ---------------------------
+const legendLightStyle = HighlightStyle.define([
+  { tag: myNewTag1, color: '#0c4a87', fontWeight: 'bold' },
+  { tag: myNewTag2, color: '#8B4513', fontWeight: 'bold' }
 ]);
 
-// Language support bundle
-function legendSupport(): LanguageSupport {
-  return new LanguageSupport(LegendLanguage, [
-    syntaxHighlighting(legendHighlightStyle)
-  ]);
+const legendDarkStyle = HighlightStyle.define([
+  { tag: myNewTag1, color: '#61dafb', fontWeight: 'bold' },
+  { tag: myNewTag2, color: '#ffb86c', fontWeight: 'bold' }
+]);
+
+// ---------------------------
+// 4. Get LanguageSupport dynamically based on theme
+// ---------------------------
+function legendSupport(isDark: boolean): LanguageSupport {
+  const style = isDark ? legendDarkStyle : legendLightStyle;
+  return new LanguageSupport(LegendLanguage, [syntaxHighlighting(style)]);
 }
 
-//  Register the plugin with JupyterLab
+// ---------------------------
+// 5. Plugin definition
+// ---------------------------
 const plugin: JupyterFrontEndPlugin<void> = {
   id: 'legend-language-plugin',
   autoStart: true,
-  requires: [IEditorLanguageRegistry],
-  activate: (app: JupyterFrontEnd, languages: IEditorLanguageRegistry) => {
+  requires: [IEditorLanguageRegistry, IThemeManager],
+  activate: (
+    app: JupyterFrontEnd,
+    languages: IEditorLanguageRegistry,
+    themeManager: IThemeManager
+  ) => {
+    // Dynamic loader always reflects the current theme
+    const dynamicLoader = async () => {
+      const isDark = themeManager.theme?.toLowerCase().includes('dark') ?? false;
+      console.log(`Loading Legend language for ${isDark ? 'dark' : 'light'} theme`);
+      return legendSupport(isDark);
+    };
+
+    // Register language only once — loader is dynamic
     languages.addLanguage({
       name: 'legend',
       mime: 'text/x-legend',
       extensions: ['.lgd'],
-      load: async () => legendSupport()
+      load: dynamicLoader
     });
+
+    console.log('Legend language plugin activated with theme-aware dynamic loader');
   }
 };
 
