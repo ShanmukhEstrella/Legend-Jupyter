@@ -7,7 +7,7 @@ from ipykernel.kernelbase import Kernel
 from .magics import CELL_MAGICS, LINE_MAGICS
 from inspect import getmembers, isclass
 from ipykernel.kernelbase import Kernel
-import pandas
+import pandas as pd
 import os
 import re
 
@@ -95,6 +95,8 @@ class LegendKernel(Kernel):
 
 
     def get_columns(self):
+        if self.tables == []:
+            return
         for x in self.tables:
             response = requests.post("http://127.0.0.1:9095/api/server/execute",json={"line":"get_attributes " + "local::DuckDuckConnection."+x})
             output = response.json()
@@ -729,6 +731,9 @@ class LegendKernel(Kernel):
             try:
                 response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
                 response2 = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": "get_tables " + "local::DuckDuckConnection"})
+                output2 = response2.json()
+                self.tables = [x for x in output2["tables"]]
+                self.get_columns()
             finally:
                 stop_event.set()
                 timer_thread.join()
@@ -751,9 +756,6 @@ class LegendKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
-            output2 = response2.json()
-            self.tables = [x for x in output2["tables"]]
-            self.get_columns()
             output = response.text
             stream_content = {'name': 'stdout', 'text': output}
             self.send_response(self.iopub_socket, 'stream', stream_content)
@@ -905,6 +907,9 @@ class LegendKernel(Kernel):
             try:
                 response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
                 response2 = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": "get_tables " + "local::DuckDuckConnection"})
+                output2 = response2.json()
+                self.tables = [x for x in output2["tables"]]
+                self.get_columns()
             finally:
                 stop_event.set()
                 timer_thread.join()
@@ -926,9 +931,6 @@ class LegendKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
-            output2 = response2.json()
-            self.tables = [x for x in output2["tables"]]
-            self.get_columns()
             output = response.text
             stream_content = {'name': 'stdout', 'text': output}
             self.send_response(self.iopub_socket, 'stream', stream_content)
@@ -1534,4 +1536,3 @@ class LegendKernel(Kernel):
 # if __name__ == '__main__':
 #     from ipykernel.kernelapp import IPKernelApp
 #     IPKernelApp.launch_instance(kernel_class=LegendKernel)
-
