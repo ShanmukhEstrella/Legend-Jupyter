@@ -24,6 +24,7 @@ class LegendKernel(Kernel):
     }
     banner = kernel_name
     tables = []
+    details = {}
 
 
 
@@ -86,10 +87,18 @@ class LegendKernel(Kernel):
 
         html_parts.append("</div></details>")
         return "\n".join(html_parts)
+    
 
 
 
 
+
+
+    def get_columns(self):
+        for x in self.tables:
+            response = requests.post("http://127.0.0.1:9095/api/server/execute",json={"line":"get_attributes " + "local::DuckDuckConnection."+x})
+            output = response.json()
+            self.details[x] = [y for y in output["attributes"]]
 
 
 
@@ -97,6 +106,9 @@ class LegendKernel(Kernel):
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
         magic_line, *cell_lines = code.splitlines()
         cell_code = "\n".join(cell_lines)
+
+
+
         if code.strip().startswith("start_legend"):
             import threading, time
             from IPython.display import clear_output
@@ -741,6 +753,7 @@ class LegendKernel(Kernel):
                 }
             output2 = response2.json()
             self.tables = [x for x in output2["tables"]]
+            self.get_columns()
             output = response.text
             stream_content = {'name': 'stdout', 'text': output}
             self.send_response(self.iopub_socket, 'stream', stream_content)
@@ -915,6 +928,7 @@ class LegendKernel(Kernel):
                 }
             output2 = response2.json()
             self.tables = [x for x in output2["tables"]]
+            self.get_columns()
             output = response.text
             stream_content = {'name': 'stdout', 'text': output}
             self.send_response(self.iopub_socket, 'stream', stream_content)
@@ -1437,6 +1451,42 @@ class LegendKernel(Kernel):
                 'metadata': {},
                 'status': 'ok'
             }
+        if prefix.endswith("}#") or prefix.endswith(")"):
+            return {
+                'matches': [" -> "],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
+        if prefix.strip().endswith(" ->") or prefix.strip().endswith("->"):
+            return {
+                'matches': ["filter(", "groupBy(", "select("],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
+        if prefix.strip().endswith("x|$x."):
+            match = re.search(r"#>\{local::DuckDuckDatabase\.([A-Za-z0-9_]+)}#", prefix)
+            if match:
+                result = match.group(1)
+            p = self.details[result]
+            return {
+                'matches': p,
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
+        if prefix.strip().endswith("filter("):
+            return {
+                'matches': ["x|$x."],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
         if "#>{local::DuckDuckDatabase" in prefix:
             match = re.search(r"#>\{local::DuckDuckDatabase\.([A-Za-z0-9_]*)$", prefix)
             if match:
@@ -1444,7 +1494,7 @@ class LegendKernel(Kernel):
                 
                 # Strict prefix match (case-insensitive)
                 matches = [
-                    table
+                    table +  "}#"
                     for table in self.tables
                     if table.lower().startswith(typed.lower())
                 ]
