@@ -13,7 +13,6 @@ Legend-Kernel files are present here.
 - datetime
 - json
 - html
-- ipyaggrid
 
 
 ## Usage:
