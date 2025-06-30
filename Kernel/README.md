@@ -13,7 +13,12 @@ Legend-Kernel files are present here.
 - datetime
 - json
 - html
+- ipywidgets
 - ipyaggrid
+
+## Jupyter lab extensions (For AG Grid)
+- @jupyter-widgets/jupyterlab-manager
+    - Install it via (jupyter labextension install @jupyter-widgets/jupyterlab-manager)
 
 ## Usage:
 Download the contents of this folder.
