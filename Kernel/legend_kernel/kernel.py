@@ -10,6 +10,8 @@ from ipykernel.kernelbase import Kernel
 import pandas as pd
 import os
 import re
+from ipyaggrid import Grid
+from IPython.display import display
 
 
 class LegendKernel(Kernel):
@@ -1350,7 +1352,7 @@ class LegendKernel(Kernel):
                 timer_thread.join()
             output = response.json()
             try:
-                df = pandas.DataFrame(output) 
+                df = pd.DataFrame(output)
             except Exception:
                 s = HTML(f"<div style='color: red;'>Error: {output["error"]}</div>")
                 self.send_response(self.iopub_socket,
@@ -1368,21 +1370,85 @@ class LegendKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
-            display_content = {
+            # Convert DataFrame to a pretty HTML table
+            def df_to_styled_html(df: pd.DataFrame) -> str:
+                import html
+
+                if df.empty:
+                    return "<p style='font-family: Inter, sans-serif; font-size: 16px;'><em>No data available</em></p>"
+
+                escaped = df.applymap(lambda val: html.escape(str(val)))
+                header_html = ''.join(f'<th>{html.escape(col)}</th>' for col in escaped.columns)
+
+                body_html = ''
+                for _, row in escaped.iterrows():
+                    row_html = ''.join(f'<td>{val}</td>' for val in row)
+                    body_html += f'<tr>{row_html}</tr>'
+
+                return f"""
+                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
+                <style>
+                    .modern-table-wrapper {{
+                        display: block;
+                        max-width: 700px;
+                        margin: 20px 0 0 0;
+                        padding: 0;
+                        text-align: left;
+                        border-radius: 12px;
+                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                        font-family: 'Inter', sans-serif;
+                    }}
+                    .modern-table {{
+                        border-collapse: collapse;
+                        width: 100%;
+                        font-size: 15px;
+                        background-color: #ffffff;
+                        border-radius: 12px;
+                        overflow: hidden;
+                    }}
+                    .modern-table thead {{
+                        background: linear-gradient(to right, #667eea, #764ba2);
+                        color: white;
+                    }}
+                    .modern-table th {{
+                        padding: 12px 16px;
+                        text-align: left;
+                        font-weight: 600;
+                    }}
+                    .modern-table td {{
+                        padding: 12px 16px;
+                        text-align: left;
+                    }}
+                    .modern-table tbody tr:nth-child(even) {{
+                        background-color: #f8f9fa;
+                    }}
+                    .modern-table tbody tr:hover {{
+                        background-color: #e0f7fa;
+                        transition: background-color 0.3s ease;
+                    }}
+                </style>
+
+                <div class="modern-table-wrapper">
+                    <table class="modern-table">
+                        <thead><tr>{header_html}</tr></thead>
+                        <tbody>{body_html}</tbody>
+                    </table>
+                </div>
+                """
+            html_output = df_to_styled_html(df)
+            self.send_response(self.iopub_socket, 'display_data', {
                 'data': {
-                    'text/plain': str(df),
-                    'text/html': df.to_html()
+                    'text/html': html_output,
+                    'text/plain': str(df)
                 },
                 'metadata': {}
-            }
-            self.send_response(self.iopub_socket, 'display_data', display_content)
+            })
             return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
             }
-        
 
 
 
