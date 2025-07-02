@@ -1313,6 +1313,7 @@ class LegendKernel(Kernel):
 
 
         elif code.strip().startswith("#>"):
+            code = code.replace('\n', '')
             match = re.search(r'(.*?)--save\s+\"?([^\s\"]+\.csv)\"?\s*$', code.strip())
             if match:
                 query_part = match.group(1).strip()
