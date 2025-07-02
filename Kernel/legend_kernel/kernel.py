@@ -1552,6 +1552,14 @@ class LegendKernel(Kernel):
                 'metadata': {},
                 'status': 'ok'
             }
+        if prefix.endswith("db"):
+            return {
+                'matches': [" local::DuckDuckConnection"],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
         if prefix.endswith("]"):
             return {
                 'matches': [")"],
