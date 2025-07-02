@@ -1313,6 +1313,13 @@ class LegendKernel(Kernel):
 
 
         elif code.strip().startswith("#>"):
+            match = re.search(r'(.*?)--save\s+\"?([^\s\"]+\.csv)\"?\s*$', code.strip())
+            if match:
+                query_part = match.group(1).strip()
+                filename = match.group(2).strip()
+            else:
+                query_part = code.strip()
+                filename = None
             from IPython.display import HTML
             import threading, time
             from IPython.display import clear_output
@@ -1346,7 +1353,7 @@ class LegendKernel(Kernel):
             timer_thread = threading.Thread(target=show_running_time)
             timer_thread.start()
             try:
-                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": magic_line})
+                response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": query_part})
             finally:
                 stop_event.set()
                 timer_thread.join()
@@ -1370,13 +1377,10 @@ class LegendKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
-            # Convert DataFrame to a pretty HTML table
             def df_to_styled_html(df: pd.DataFrame) -> str:
                 import html
-
                 if df.empty:
                     return "<p style='font-family: Inter, sans-serif; font-size: 16px;'><em>No data available</em></p>"
-
                 escaped = df.applymap(lambda val: html.escape(str(val)))
                 header_html = ''.join(f'<th>{html.escape(col)}</th>' for col in escaped.columns)
 
@@ -1435,6 +1439,8 @@ class LegendKernel(Kernel):
                     </table>
                 </div>
                 """
+            if filename!=None:
+                df.to_csv(filename, index=False)
             html_output = df_to_styled_html(df)
             self.send_response(self.iopub_socket, 'display_data', {
                 'data': {
@@ -1454,7 +1460,7 @@ class LegendKernel(Kernel):
 
 
     def do_complete(self, code, cursor_pos):
-        suggestions = ["load", "db", "load1", "load2", "locd", "#>"]
+        suggestions = ["load", "db", "#>"]
         prefix = code[:cursor_pos]
         tokens = prefix.strip().split()
 
@@ -1519,6 +1525,14 @@ class LegendKernel(Kernel):
                 'metadata': {},
                 'status': 'ok'
             }
+        if prefix.endswith("]"):
+            return {
+                'matches': [")"],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
         if prefix.endswith("}#") or prefix.endswith(")"):
             return {
                 'matches': [" -> "],
@@ -1529,7 +1543,7 @@ class LegendKernel(Kernel):
             }
         if prefix.strip().endswith(" ->") or prefix.strip().endswith("->"):
             return {
-                'matches': ["filter(", "groupBy(", "select("],
+                'matches': ["filter(", "groupBy(", "select(","from("],
                 'cursor_start': cursor_pos,
                 'cursor_end': cursor_pos,
                 'metadata': {},
@@ -1547,9 +1561,45 @@ class LegendKernel(Kernel):
                 'metadata': {},
                 'status': 'ok'
             }
+        if prefix.strip().endswith("~[") or prefix.strip().endswith(","):
+            match = re.search(r"#>\{local::DuckDuckDatabase\.([A-Za-z0-9_]+)}#", prefix)
+            if match:
+                result = match.group(1)
+            p = self.details[result]
+            return {
+                'matches': p,
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
         if prefix.strip().endswith("filter("):
             return {
                 'matches': ["x|$x."],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
+        if prefix.strip().endswith("from("):
+            return {
+                'matches': ["local::DuckDuckRuntime)"],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
+        if prefix.strip().endswith("--"):
+            return {
+                'matches': ["save \"\""],
+                'cursor_start': cursor_pos,
+                'cursor_end': cursor_pos,
+                'metadata': {},
+                'status': 'ok'
+            }
+        if prefix.strip().endswith("select("):
+            return {
+                'matches': ["~["],
                 'cursor_start': cursor_pos,
                 'cursor_end': cursor_pos,
                 'metadata': {},
