@@ -24,3 +24,9 @@ pip install .
 python3 -m legend_kernel.install
 ```
 The kernel will be installed in your jupyter environment!!
+
+
+For Interactive console (Terminal based):
+```bash
+jupyter console --kernel=legend_kernel
+```
