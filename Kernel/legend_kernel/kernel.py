@@ -27,6 +27,50 @@ class LegendKernel(Kernel):
     banner = kernel_name
     tables = []
     details = {}
+    check = False
+
+
+
+    def get_columns(self):
+        if self.tables == []:
+            return
+        for x in self.tables:
+            response = requests.post("http://127.0.0.1:9095/api/server/execute",json={"line":"get_attributes " + "local::DuckDuckConnection."+x})
+            output = response.json()
+            self.details[x] = [y for y in output["attributes"]]
+
+
+    def initiate(self):
+        from IPython.display import HTML
+        import threading, time
+        from IPython.display import clear_output
+        stop_event = threading.Event()
+        def show_running_time():
+            start = time.time()
+            while not stop_event.is_set():
+                elapsed = time.time() - start
+                s = HTML(f"<div style='color:  green;'>Warming up... {elapsed:.2f} seconds elapsed\n</div>")
+                self.send_response(self.iopub_socket,
+                    'display_data',
+                    {
+                        'data': {
+                            'text/html': str(s.data)
+                        },
+                        'metadata': {}
+                    }
+                )
+                self.send_response(self.iopub_socket, 'clear_output', {'wait': True})
+                time.sleep(0.01)
+        timer_thread = threading.Thread(target=show_running_time)
+        timer_thread.start()
+        try:
+            response = requests.post("http://127.0.0.1:9095/api/server/execute", json={"line": "get_tables " + "local::DuckDuckConnection"})
+            output = response.json()
+            self.tables = [x for x in output["tables"]]
+            self.get_columns()
+        finally:
+            stop_event.set()
+            timer_thread.join()
 
 
 
@@ -95,19 +139,10 @@ class LegendKernel(Kernel):
 
 
 
-
-    def get_columns(self):
-        if self.tables == []:
-            return
-        for x in self.tables:
-            response = requests.post("http://127.0.0.1:9095/api/server/execute",json={"line":"get_attributes " + "local::DuckDuckConnection."+x})
-            output = response.json()
-            self.details[x] = [y for y in output["attributes"]]
-
-
-
-
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
+        if(self.check == False):
+            self.initiate()
+            self.check = True
         magic_line, *cell_lines = code.splitlines()
         cell_code = "\n".join(cell_lines)
 
@@ -739,7 +774,6 @@ class LegendKernel(Kernel):
             finally:
                 stop_event.set()
                 timer_thread.join()
-            # self.play_success_sound()
             if(response.headers.get('Content-Type') == 'application/json'):
                 output = response.json()
                 s = HTML(f"<div style='color: red;'>{output["error"]}</div>")
@@ -1389,24 +1423,23 @@ class LegendKernel(Kernel):
                 for _, row in escaped.iterrows():
                     row_html = ''.join(f'<td>{val}</td>' for val in row)
                     body_html += f'<tr>{row_html}</tr>'
-
                 return f"""
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
                 <style>
                     .pretty-table-wrapper {{
                         font-family: 'Inter', sans-serif;
                         font-size: 14px;
-                        margin: 20px 0 0 0;
-                        max-width: 800px;
-                        overflow-x: auto;
+                        margin-top: 20px;
+                        overflow-x: auto;          /* Enable horizontal scrolling */
+                        width: 100%;
+                        box-sizing: border-box;
                     }}
 
                     .pretty-table {{
-                        border-collapse: separate;
-                        border-spacing: 0;
-                        width: 100%;
-                        border-radius: 12px;
-                        overflow: hidden;
+                        border-collapse: collapse;
+                        width: max-content;        /* Table width fits content */
+                        min-width: 100%;           /* At least full container width */
+                        table-layout: auto;        /* Flexible column sizes */
                         color: var(--text-color);
                         background-color: var(--bg-color);
                     }}
@@ -1415,21 +1448,15 @@ class LegendKernel(Kernel):
                         background-color: var(--header-bg);
                     }}
 
-                    .pretty-table th {{
+                    .pretty-table th, .pretty-table td {{
                         padding: 10px 14px;
                         text-align: left;
-                        font-weight: 600;
-                        border-bottom: 1px solid var(--border-color);
-                        border-top-left-radius: 8px;
-                        border-top-right-radius: 8px;
-                        color: var(--header-text);
-                        white-space: nowrap;
-                    }}
-
-                    .pretty-table td {{
-                        padding: 10px 14px;
-                        border-bottom: 1px solid var(--border-color);
-                        white-space: nowrap;
+                        font-weight: 500;
+                        border: 1px solid var(--border-color);
+                        white-space: nowrap;       /* Keep content in single line */
+                        max-width: 400px;          /* Limit max width of cells */
+                        overflow: hidden;          /* Hide overflow */
+                        text-overflow: ellipsis;   /* Show ellipsis for overflow */
                     }}
 
                     .pretty-table tbody tr:hover {{
@@ -1441,9 +1468,8 @@ class LegendKernel(Kernel):
                         --bg-color: #ffffff;
                         --text-color: #1a1a1a;
                         --header-bg: #e3f2fd;
-                        --header-text: #0d47a1;
-                        --border-color: #d0d0d0;
-                        --hover-bg: #dfefff;
+                        --border-color: #c0c0c0;
+                        --hover-bg: #f1faff;
                     }}
 
                     @media (prefers-color-scheme: dark) {{
@@ -1451,7 +1477,6 @@ class LegendKernel(Kernel):
                             --bg-color: #1e1e1e;
                             --text-color: #f0f0f0;
                             --header-bg: #223a5f;
-                            --header-text: #bbdefb;
                             --border-color: #444;
                             --hover-bg: #2f4f73;
                         }}
@@ -1465,7 +1490,6 @@ class LegendKernel(Kernel):
                     </table>
                 </div>
                 """
-
             if filename!=None:
                 df.to_csv(filename, index=False)
             html_output = df_to_styled_html(df)
@@ -1490,11 +1514,8 @@ class LegendKernel(Kernel):
         suggestions = ["load", "db", "#>"]
         prefix = code[:cursor_pos]
         tokens = prefix.strip().split()
-
-        # Case 1: After typing 'load' only, suggest ' ~/'
         if tokens and tokens[0] == "load" and prefix.rstrip() == "load":
             match = " ~/"
-
             start = len(prefix)
             return {
                 'matches': [match],
@@ -1503,27 +1524,18 @@ class LegendKernel(Kernel):
                 'metadata': {},
                 'status': 'ok'
             }
-
-        # Case 2: After 'load ~/' or deeper, suggest files and folders recursively
         if prefix.startswith("load ~/"):
-            # Extract the path after 'load '
             path_prefix = prefix[len("load "):]
-            # Separate path and current partial token
             if path_prefix.endswith('/'):
                 dir_path = os.path.expanduser(path_prefix)
                 partial = ''
             else:
                 dir_path, partial = os.path.split(os.path.expanduser(path_prefix))
-
-            # List entries in the directory
             try:
                 entries = os.listdir(dir_path)
             except Exception:
                 entries = []
-
-            # Filter entries by prefix
             matches = [e for e in entries if e.startswith(partial)]
-            # Add '/' to directories for clarity
             matches = [
                 e + '/' if os.path.isdir(os.path.join(dir_path, e)) else e
                 for e in matches
@@ -1534,8 +1546,6 @@ class LegendKernel(Kernel):
                     e + '/' if os.path.isdir(os.path.join(dir_path, e)) else e
                     for e in matches
                 ]
-
-            # If only one match, auto-complete
             cursor_start = len("load ") + len(path_prefix) - len(partial)
             return {
                 'matches': matches,
@@ -1596,7 +1606,25 @@ class LegendKernel(Kernel):
                 'metadata': {},
                 'status': 'ok'
             }
-        if prefix.strip().endswith("~[") or prefix.strip().endswith(","):
+        if prefix.strip().endswith("|"):
+            if(cursor_pos>=2):
+                var = code[cursor_pos-2]
+                return {
+                    'matches': ["$"+var+"."],
+                    'cursor_start': cursor_pos,
+                    'cursor_end': cursor_pos,
+                    'metadata': {},
+                    'status': 'ok'
+                }
+            else:
+                return {
+                    'matches': [],
+                    'cursor_start': cursor_pos,
+                    'cursor_end': cursor_pos,
+                    'metadata': {},
+                    'status': 'ok'
+                }
+        if prefix.strip().endswith("~") or prefix.strip().endswith(",") or prefix.strip().endswith("[") or (prefix.strip().endswith(".") and cursor_pos>=3 and code[cursor_pos-3]=="$"):
             match = re.search(r"#>\{local::DuckDuckDatabase\.([A-Za-z0-9_]+)}#", prefix)
             if match:
                 result = match.group(1)
@@ -1643,16 +1671,12 @@ class LegendKernel(Kernel):
         if "#>{local::DuckDuckDatabase" in prefix:
             match = re.search(r"#>\{local::DuckDuckDatabase\.([A-Za-z0-9_]*)$", prefix)
             if match:
-                typed = match.group(1)  # e.g., "te"
-                
-                # Strict prefix match (case-insensitive)
+                typed = match.group(1)
                 matches = [
                     table +  "}#"
                     for table in self.tables
                     if table.lower().startswith(typed.lower())
                 ]
-
-                # cursor_start should be right at the start of the typed fragment
                 cursor_start = cursor_pos - len(typed)
                 cursor_end = cursor_pos
 
@@ -1663,12 +1687,9 @@ class LegendKernel(Kernel):
                     'metadata': {},
                     'status': 'ok'
                 }
-
-        # Case 3: Normal completion for initial suggestions
         matches = [s for s in suggestions if s.startswith(prefix)]
-        if not matches:
-            matches = suggestions
-
+        # if not matches:
+        #     matches = suggestions
         return {
             'matches': matches,
             'cursor_start': 0,
