@@ -49,7 +49,7 @@ class LegendKernel(Kernel):
             start = time.time()
             while not stop_event.is_set():
                 elapsed = time.time() - start
-                s = HTML(f"<div style='color:  green;'>Warming up... {elapsed:.2f} seconds elapsed\n</div>")
+                s = HTML(f"<div style='color:  green;'>Kernel Warming up... {elapsed:.2f} seconds elapsed\n</div>")
                 self.send_response(self.iopub_socket,
                     'display_data',
                     {
@@ -1589,7 +1589,8 @@ class LegendKernel(Kernel):
             }
         if prefix.strip().endswith(" ->") or prefix.strip().endswith("->"):
             return {
-                'matches': ["filter(", "groupBy(", "select(","from("],
+                'matches': ["filter(", "groupBy(", "select(", "extend(","from(" , "pivot(", "asofjoin(", "join(", "distinct(","rename(", "concatenate(",
+                            "sort(","size(","drop("],
                 'cursor_start': cursor_pos,
                 'cursor_end': cursor_pos,
                 'metadata': {},
