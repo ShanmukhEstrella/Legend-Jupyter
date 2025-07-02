@@ -28,14 +28,10 @@ const LegendLanguage = LRLanguage.define({
         NewOne2: myNewTag2,
         Operator: t.operator,
         Identifier: t.variableName,
-        LineComment: t.lineComment,
         Parens: t.paren
       })
     ]
-  }),
-  languageData: {
-    commentTokens: { line: '#' }
-  }
+  })
 });
 
 // ---------------------------
