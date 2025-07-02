@@ -1430,16 +1430,17 @@ class LegendKernel(Kernel):
                         font-family: 'Inter', sans-serif;
                         font-size: 14px;
                         margin-top: 20px;
-                        overflow-x: auto;          /* Enable horizontal scrolling */
+                        overflow-x: auto;
                         width: 100%;
                         box-sizing: border-box;
+                        text-align: left; /* Ensure wrapper aligns content to the left */
                     }}
 
                     .pretty-table {{
                         border-collapse: collapse;
-                        width: max-content;        /* Table width fits content */
-                        min-width: 100%;           /* At least full container width */
-                        table-layout: auto;        /* Flexible column sizes */
+                        width: max-content;
+                        min-width: 100%;
+                        table-layout: auto;
                         color: var(--text-color);
                         background-color: var(--bg-color);
                     }}
@@ -1451,12 +1452,12 @@ class LegendKernel(Kernel):
                     .pretty-table th, .pretty-table td {{
                         padding: 10px 14px;
                         text-align: left;
-                        font-weight: 500;
+                        font-weight: bold; /* Make headers bold */
                         border: 1px solid var(--border-color);
-                        white-space: nowrap;       /* Keep content in single line */
-                        max-width: 400px;          /* Limit max width of cells */
-                        overflow: hidden;          /* Hide overflow */
-                        text-overflow: ellipsis;   /* Show ellipsis for overflow */
+                        white-space: nowrap;
+                        max-width: 400px;
+                        overflow: hidden;
+                        text-overflow: ellipsis;
                     }}
 
                     .pretty-table tbody tr:hover {{
