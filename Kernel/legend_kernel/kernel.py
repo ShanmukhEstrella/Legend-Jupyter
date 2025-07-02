@@ -11,7 +11,7 @@ import pandas as pd
 import os
 import re
 from ipyaggrid import Grid
-from IPython.display import display
+from IPython.display import display,HTML
 
 
 class LegendKernel(Kernel):
@@ -1392,53 +1392,79 @@ class LegendKernel(Kernel):
                 return f"""
                 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
                 <style>
-                    .modern-table-wrapper {{
-                        display: block;
-                        max-width: 700px;
-                        margin: 20px 0 0 0;
-                        padding: 0;
-                        text-align: left;
-                        border-radius: 12px;
-                        box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+                    .pretty-table-wrapper {{
                         font-family: 'Inter', sans-serif;
+                        font-size: 14px;
+                        margin: 20px 0 0 0;
+                        max-width: 800px;
+                        overflow-x: auto;
                     }}
-                    .modern-table {{
-                        border-collapse: collapse;
+
+                    .pretty-table {{
+                        border-collapse: separate;
+                        border-spacing: 0;
                         width: 100%;
-                        font-size: 15px;
-                        background-color: #ffffff;
                         border-radius: 12px;
                         overflow: hidden;
+                        color: var(--text-color);
+                        background-color: var(--bg-color);
                     }}
-                    .modern-table thead {{
-                        background: linear-gradient(to right, #667eea, #764ba2);
-                        color: white;
+
+                    .pretty-table thead {{
+                        background-color: var(--header-bg);
                     }}
-                    .modern-table th {{
-                        padding: 12px 16px;
+
+                    .pretty-table th {{
+                        padding: 10px 14px;
                         text-align: left;
                         font-weight: 600;
+                        border-bottom: 1px solid var(--border-color);
+                        border-top-left-radius: 8px;
+                        border-top-right-radius: 8px;
+                        color: var(--header-text);
+                        white-space: nowrap;
                     }}
-                    .modern-table td {{
-                        padding: 12px 16px;
-                        text-align: left;
+
+                    .pretty-table td {{
+                        padding: 10px 14px;
+                        border-bottom: 1px solid var(--border-color);
+                        white-space: nowrap;
                     }}
-                    .modern-table tbody tr:nth-child(even) {{
-                        background-color: #f8f9fa;
-                    }}
-                    .modern-table tbody tr:hover {{
-                        background-color: #e0f7fa;
+
+                    .pretty-table tbody tr:hover {{
+                        background-color: var(--hover-bg);
                         transition: background-color 0.3s ease;
+                    }}
+
+                    :root {{
+                        --bg-color: #ffffff;
+                        --text-color: #1a1a1a;
+                        --header-bg: #e3f2fd;
+                        --header-text: #0d47a1;
+                        --border-color: #d0d0d0;
+                        --hover-bg: #dfefff;
+                    }}
+
+                    @media (prefers-color-scheme: dark) {{
+                        :root {{
+                            --bg-color: #1e1e1e;
+                            --text-color: #f0f0f0;
+                            --header-bg: #223a5f;
+                            --header-text: #bbdefb;
+                            --border-color: #444;
+                            --hover-bg: #2f4f73;
+                        }}
                     }}
                 </style>
 
-                <div class="modern-table-wrapper">
-                    <table class="modern-table">
+                <div class="pretty-table-wrapper">
+                    <table class="pretty-table">
                         <thead><tr>{header_html}</tr></thead>
                         <tbody>{body_html}</tbody>
                     </table>
                 </div>
                 """
+
             if filename!=None:
                 df.to_csv(filename, index=False)
             html_output = df_to_styled_html(df)
