@@ -1,7 +1,7 @@
 @top Program { Statement* }
 
 Statement {
-  KeywordStmt | NewOneStmt1 | NewOneStmt2 | NumberStmt | OperatorStmt | CommentStmt | IdentifierStmt | ParensStmt
+  KeywordStmt | NewOneStmt1 | NewOneStmt2 | NumberStmt | OperatorStmt | IdentifierStmt | ParensStmt
 }
 
 KeywordStmt { Keyword }
@@ -9,7 +9,6 @@ NewOneStmt1 { NewOne1}
 NewOneStmt2 { NewOne2}
 NumberStmt { Number }
 OperatorStmt { Operator }
-CommentStmt { LineComment }
 IdentifierStmt { Identifier }
 ParensStmt { Parens }
 
@@ -17,9 +16,8 @@ ParensStmt { Parens }
 
 @tokens {
   whitespace { "[ \t\r\n]+" }
-  LineComment { "#[^\n]*" }
-  Keyword { "filter" | "groupBy" | "select" | "project" | "from"}
-  NewOne1 { "load" | "db" | "drop_all_tables" | "get_attributes" | "get_tables" | "show_macros" | "clear_macros" | "macro"}
+  Keyword { "filter" | "groupBy" | "select" | "project" | "from" | "rename" | "pivot" | "join" | "extend" | "distinct" | "concatenate"| "asofjoin" | "drop" | "sort" | "size"}
+  NewOne1 { "#" | "load" | "db" | "drop_all_tables" | "get_attributes" | "get_tables" | "show_macros" | "clear_macros" | "macro"}
   NewOne2 {"local" | "DuckDuckDatabase" | "DuckDuckConnection" | "DuckDuckRuntime"}
   Number { "[0-9]+" }
   Operator { "+" | "-" | "*" | "/" | "=" | "<" | ">" | "!" | "::" | "->" }
