@@ -12,7 +12,7 @@ To install the extension, execute:
 
 ```bash
 yarn install
-yarn add --dev rollup rollup-plugin-typescript2 @rollup/plugin-node-resolve @rollup/plugin-commonjs typescript
+yarn add --dev rollup rollup-plugin-typescript2 @rollup/plugin-node-resolve @rollup/plugin-commonjs typescript -W
 yarn add --dev @rollup/plugin-url -W
 yarn build
 jupyter labextension install .
