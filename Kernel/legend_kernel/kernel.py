@@ -1348,12 +1348,19 @@ class LegendKernel(Kernel):
 
         elif code.strip().startswith("#>"):
             code = code.replace('\n', '')
-            match = re.search(r'(.*?)--save\s+\"?([^\s\"]+\.csv)\"?\s*$', code.strip())
-            if match:
-                query_part = match.group(1).strip()
-                filename = match.group(2).strip()
+            match1 = re.search(r'(.*?)--file\s+(\w+)\s*$', code.strip())
+            match2 = re.search(r'(.*?)--var\s+(\w+)\s*$', code.strip())
+            if match1:
+                query_part = match1.group(1).strip()
+                filename = match1.group(2).strip()
+                variable = None
+            elif match2:
+                query_part = match2.group(1).strip()
+                variable = match2.group(2).strip()
+                filename = None
             else:
                 query_part = code.strip()
+                variable = None
                 filename = None
             from IPython.display import HTML
             import threading, time
@@ -1492,21 +1499,56 @@ class LegendKernel(Kernel):
                 </div>
                 """
             if filename!=None:
-                df.to_csv(filename, index=False)
-            html_output = df_to_styled_html(df)
-            self.send_response(self.iopub_socket, 'display_data', {
-                'data': {
-                    'text/html': html_output,
-                    'text/plain': str(df)
-                },
-                'metadata': {}
-            })
-            return {
+                df.to_csv(filename,index=False)
+                s = HTML(f"<div style='color:  green;'>DataFrame saved in the file - {filename}\n</div>")
+                self.send_response(self.iopub_socket,
+                    'display_data',
+                    {
+                        'data': {
+                            'text/html': str(s.data)
+                        },
+                        'metadata': {}
+                    }
+                )
+                return {
                 'status': 'ok',
                 'execution_count': self.execution_count,
                 'payload': [],
                 'user_expressions': {}
-            }
+                }
+            elif variable!=None:
+                s = HTML(f"<div style='color:  green;'>DataFrame stored in the variable - \"{variable}\"\n</div>")
+                variable = df
+                self.send_response(self.iopub_socket,
+                    'display_data',
+                    {
+                        'data': {
+                            'text/html': str(s.data)
+                        },
+                        'metadata': {}
+                    }
+                )
+                return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+                }
+            else:
+                html_output = df_to_styled_html(df)
+                self.send_response(self.iopub_socket, 'display_data', {
+                    'data': {
+                        'text/html': html_output,
+                        'text/plain': str(df)
+                    },
+                    'metadata': {}
+                })
+                return {
+                    'status': 'ok',
+                    'execution_count': self.execution_count,
+                    'payload': [],
+                    'user_expressions': {}
+                }
 
 
 
@@ -1581,7 +1623,7 @@ class LegendKernel(Kernel):
             }
         if prefix.endswith("}#") or prefix.endswith(")"):
             return {
-                'matches': [" -> "],
+                'matches': ["->"],
                 'cursor_start': cursor_pos,
                 'cursor_end': cursor_pos,
                 'metadata': {},
@@ -1656,7 +1698,7 @@ class LegendKernel(Kernel):
             }
         if prefix.strip().endswith("--"):
             return {
-                'matches': ["save \"\""],
+                'matches': ["file", "var"],
                 'cursor_start': cursor_pos,
                 'cursor_end': cursor_pos,
                 'metadata': {},
