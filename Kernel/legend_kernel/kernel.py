@@ -10,8 +10,10 @@ from ipykernel.kernelbase import Kernel
 import pandas as pd
 import os
 import re
-from ipyaggrid import Grid
-from IPython.display import display,HTML
+from dash import Dash, html
+from dash_ag_grid import AgGrid
+import threading
+import socket
 
 
 class LegendKernel(Kernel):
@@ -137,7 +139,41 @@ class LegendKernel(Kernel):
 
 
 
+    def start_aggrid_dash(self,df, port=None):
+        if port is None:
+            port = self.find_free_port()
+        app = Dash(__name__)
+        app.layout = html.Div([
+            AgGrid(
+                rowData=df.to_dict("records"),
+                columnDefs=[{"field": c} for c in df.columns],
+                defaultColDef={"filter": True, "sortable": True},
+                style={"height": "400px", "width": "100%"}
+            )
+        ])
+        threading.Thread(
+            target=lambda: app.run(port=port, debug=False, use_reloader=False),
+            daemon=True
+        ).start()
+        return f"http://localhost:{port}"
+    
 
+
+
+
+    def find_free_port(self,start=8050, max_tries=10):
+        for port in range(start, start + max_tries):
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
+                try:
+                    s.bind(('localhost', port))
+                    return port
+                except OSError:
+                    continue
+        raise RuntimeError("No available port found for Dash server")
+    
+
+
+    
 
     def do_execute(self, code, silent, store_history=True, user_expressions=None, allow_stdin=False):
         if(self.check == False):
@@ -1419,85 +1455,6 @@ class LegendKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
-            def df_to_styled_html(df: pd.DataFrame) -> str:
-                import html
-                if df.empty:
-                    return "<p style='font-family: Inter, sans-serif; font-size: 16px;'><em>No data available</em></p>"
-                escaped = df.applymap(lambda val: html.escape(str(val)))
-                header_html = ''.join(f'<th>{html.escape(col)}</th>' for col in escaped.columns)
-
-                body_html = ''
-                for _, row in escaped.iterrows():
-                    row_html = ''.join(f'<td>{val}</td>' for val in row)
-                    body_html += f'<tr>{row_html}</tr>'
-                return f"""
-                <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600&display=swap" rel="stylesheet">
-                <style>
-                    .pretty-table-wrapper {{
-                        font-family: 'Inter', sans-serif;
-                        font-size: 14px;
-                        margin-top: 20px;
-                        overflow-x: auto;
-                        width: 100%;
-                        box-sizing: border-box;
-                        text-align: left; /* Ensure wrapper aligns content to the left */
-                    }}
-
-                    .pretty-table {{
-                        border-collapse: collapse;
-                        width: max-content;
-                        min-width: 100%;
-                        table-layout: auto;
-                        color: var(--text-color);
-                        background-color: var(--bg-color);
-                    }}
-
-                    .pretty-table thead {{
-                        background-color: var(--header-bg);
-                    }}
-
-                    .pretty-table th, .pretty-table td {{
-                        padding: 10px 14px;
-                        text-align: left;
-                        font-weight: bold; /* Make headers bold */
-                        border: 1px solid var(--border-color);
-                        white-space: nowrap;
-                        max-width: 400px;
-                        overflow: hidden;
-                        text-overflow: ellipsis;
-                    }}
-
-                    .pretty-table tbody tr:hover {{
-                        background-color: var(--hover-bg);
-                        transition: background-color 0.3s ease;
-                    }}
-
-                    :root {{
-                        --bg-color: #ffffff;
-                        --text-color: #1a1a1a;
-                        --header-bg: #e3f2fd;
-                        --border-color: #c0c0c0;
-                        --hover-bg: #f1faff;
-                    }}
-
-                    @media (prefers-color-scheme: dark) {{
-                        :root {{
-                            --bg-color: #1e1e1e;
-                            --text-color: #f0f0f0;
-                            --header-bg: #223a5f;
-                            --border-color: #444;
-                            --hover-bg: #2f4f73;
-                        }}
-                    }}
-                </style>
-
-                <div class="pretty-table-wrapper">
-                    <table class="pretty-table">
-                        <thead><tr>{header_html}</tr></thead>
-                        <tbody>{body_html}</tbody>
-                    </table>
-                </div>
-                """
             if filename!=None:
                 df.to_csv(filename,index=False)
                 s = HTML(f"<div style='color:  green;'>DataFrame saved in the file - {filename}\n</div>")
@@ -1535,7 +1492,13 @@ class LegendKernel(Kernel):
                 'user_expressions': {}
                 }
             else:
-                html_output = df_to_styled_html(df)
+                url = self.start_aggrid_dash(df)
+                html_output = f'''
+                    <iframe src="{url}" 
+                            width="100%" 
+                            height="450" 
+                            style="border: none;"></iframe>
+                '''
                 self.send_response(self.iopub_socket, 'display_data', {
                     'data': {
                         'text/html': html_output,
@@ -1543,13 +1506,6 @@ class LegendKernel(Kernel):
                     },
                     'metadata': {}
                 })
-                return {
-                    'status': 'ok',
-                    'execution_count': self.execution_count,
-                    'payload': [],
-                    'user_expressions': {}
-                }
-
 
 
 
