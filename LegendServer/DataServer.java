@@ -46,21 +46,21 @@ import javax.ws.rs.core.Context;
 import javax.ws.rs.core.MediaType;
 import javax.ws.rs.core.Response;
 import java.util.*;
-
 import org.finos.legend.engine.repl.client.Client;
 import java.sql.*;
-
 import org.finos.legend.engine.repl.dataCube.DataCubeReplExtension;
 import org.finos.legend.engine.repl.relational.RelationalReplExtension;
 import org.finos.legend.engine.repl.relational.autocomplete.RelationalCompleterExtension;
 import org.finos.legend.engine.repl.relational.shared.ConnectionHelper;
 import org.finos.legend.engine.shared.core.ObjectMapperFactory;
 import org.jline.reader.LineReaderBuilder;
-
 import java.sql.Statement;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
+
+
+
 
 @Path("/server")
 public class DataServer
@@ -77,7 +77,6 @@ public class DataServer
 
     private static PlanExecutor buildPlanExecutor()
     {
-
         RelationalExecutionConfiguration relationalExecutionConfiguration = RelationalExecutionConfiguration.newInstance()
                 .withTempPath(System.getProperty("TMP","/tmp/"))
                 .withTemporaryTestDbConfiguration(new TemporaryTestDbConfiguration(9095))
@@ -171,7 +170,7 @@ public class DataServer
                 String[] tokens = line.split(" ");
                 if(tokens.length < 3 || tokens.length > 4)
                 {
-//                   throw new RuntimeException(String.format("Error, load should be used as '%s",CLIENT.commands.selectInstancesOf(Load.class).get(0).documentation));
+                   //throw new RuntimeException(String.format("Error, load should be used as '%s",CLIENT.commands.selectInstancesOf(Load.class).get(0).documentation));
                      throw new RuntimeException(String.format("Error in using the load command"));
                 }
                 RelationalDatabaseConnection databaseConnection = (RelationalDatabaseConnection) org.finos.legend.engine.repl.relational.shared.ConnectionHelper.getDatabaseConnection(CLIENT.getModelState().parse(),tokens[2]);
@@ -240,7 +239,6 @@ public class DataServer
             {
                 // Extract everything after the command
                 String fullRef = line.substring("get_attributes".length()).trim();
-
                 // Expect connectionName.tableName
                 int dotIndex = fullRef.lastIndexOf('.');
                 if (dotIndex == -1)
@@ -297,6 +295,14 @@ public class DataServer
                         .build();
             }
 
+            else if (line.startsWith("get_all"))
+            {
+                PureModelContextData modelContextData = CLIENT.getModelState().parse();
+                List<String> connectionNames = modelContextData.getElements().stream()
+                        .map(e -> e.name)
+                        .collect(Collectors.toList());
+                return Response.ok(Collections.singletonMap("connections", connectionNames)).type(MediaType.APPLICATION_JSON).build();
+            }
 
             else
             {
