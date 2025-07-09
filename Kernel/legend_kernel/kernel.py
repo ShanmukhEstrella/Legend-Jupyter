@@ -29,7 +29,15 @@ class LegendKernel(Kernel):
     banner = kernel_name
     tables = []
     details = {}
+    user_ns={}
     check = False
+
+
+
+
+    def to_json(self,df):
+        return df.to_json(orient="records")    
+
 
 
 
@@ -337,7 +345,22 @@ class LegendKernel(Kernel):
         elif code.strip().startswith("%"):
             magic_line = code.strip().split()
             magic_name = magic_line[0][1:].strip()
-            if magic_name == 'date':
+            if magic_name == "router_json":
+                varname = code.strip().split()[1]
+                df = self.user_ns.get(varname)
+                if df is None:
+                    raise ValueError("Var not found")
+                self.send_response(self.iopub_socket, 'stream', {
+                    'name': 'stdout',
+                    'text': df.to_json(orient='split') + "\n"
+                })
+                return {
+                    'status': 'ok',
+                    'execution_count': self.execution_count,
+                    'payload': [],
+                    'user_expressions': {}
+                }
+            elif magic_name == 'date':
                 t = datetime.datetime.now()
                 t = t.strftime("%Y-%m-%d %H:%M:%S")
                 stream_content = {'name': 'stdout', 'text': t}
@@ -358,6 +381,8 @@ class LegendKernel(Kernel):
                     'payload': [],
                     'user_expressions': {}
                 }
+    
+
             
 
 
@@ -1556,7 +1581,7 @@ class LegendKernel(Kernel):
                 }
             elif variable!=None:
                 s = HTML(f"<div style='color:  green;'>DataFrame stored in the variable - \"{variable}\"\n</div>")
-                variable = df
+                self.user_ns[variable] = df
                 self.send_response(self.iopub_socket,
                     'display_data',
                     {
