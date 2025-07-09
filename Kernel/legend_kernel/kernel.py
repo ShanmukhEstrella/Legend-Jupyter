@@ -5,7 +5,6 @@ import json
 import html
 from ipykernel.kernelbase import Kernel
 from .magics import CELL_MAGICS, LINE_MAGICS
-from inspect import getmembers, isclass
 from ipykernel.kernelbase import Kernel
 import pandas as pd
 import os
@@ -14,7 +13,8 @@ from dash import Dash, html
 from dash_ag_grid import AgGrid
 import threading
 import socket
-
+import subprocess
+import signal
 
 class LegendKernel(Kernel):
     kernel_name = 'legend_kernel'
@@ -139,37 +139,118 @@ class LegendKernel(Kernel):
 
 
 
-    def start_aggrid_dash(self,df, port=None):
+
+
+
+    def start_aggrid_dash(self, df, port=None):
         if port is None:
-            port = self.find_free_port()
+            try:
+                port = self.find_free_port()
+            except Exception:
+                return "No port Found"
+        column_defs = [
+            {
+                "field": c,
+                "headerName": c.capitalize(),
+                "headerClass": "custom-header"
+            } for c in df.columns
+        ]
         app = Dash(__name__)
+        app.index_string = '''<!DOCTYPE html>
+        <html>
+            <head>
+                {%metas%}
+                <title>Data Viewer</title>
+                {%favicon%}
+                {%css%}
+                <style>
+                    html, body {
+                        margin: 0;
+                        padding: 0;
+                        height: 100%;
+                        width: 100%;
+                        background: transparent;
+                        font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+                        color: #fff;
+                    }
+
+                    .ag-theme-balham {
+                        height: 100vh;
+                        width: 100vw;
+                        --ag-foreground-color: white;
+                        --ag-background-color: #1e1e2f;
+                        --ag-header-background-color: #001f3f;
+                        --ag-header-foreground-color: white;
+                        --ag-font-size: 14px;
+                        --ag-font-family: 'Segoe UI', Roboto, sans-serif;
+                    }
+
+                    .custom-header {
+                        background-color: #001f3f !important;
+                        color: white !important;
+                        font-weight: bold;
+                        text-transform: uppercase;
+                    }
+
+                    /* Handle dark mode via prefers-color-scheme */
+                    @media (prefers-color-scheme: dark) {
+                        body {
+                            background-color: #1e1e2f;
+                            color: #fff;
+                        }
+
+                        .ag-theme-balham {
+                            --ag-background-color: #1e1e2f;
+                            --ag-foreground-color: white;
+                            --ag-header-background-color: #001f3f;
+                            --ag-header-foreground-color: white;
+                        }
+                    }
+                </style>
+            </head>
+            <body>
+                {%app_entry%}
+                <footer>
+                    {%config%}
+                    {%scripts%}
+                    {%renderer%}
+                </footer>
+            </body>
+        </html>'''
         app.layout = html.Div([
             AgGrid(
                 rowData=df.to_dict("records"),
-                columnDefs=[{"field": c} for c in df.columns],
-                defaultColDef={"filter": True, "sortable": True},
-                style={"height": "400px", "width": "100%"}
+                columnDefs=column_defs,
+                defaultColDef={
+                    "sortable": True,
+                    "filter": True,
+                    "resizable": True
+                },
+                columnSize="sizeToFit",
+                className="ag-theme-balham"
             )
-        ])
+        ], id="grid", style={"margin": 0, "padding": 0, "height": "100vh", "width": "100vw"})
+
         threading.Thread(
             target=lambda: app.run(port=port, debug=False, use_reloader=False),
             daemon=True
         ).start()
         return f"http://localhost:{port}"
-    
 
 
 
 
-    def find_free_port(self,start=8050, max_tries=10):
-        for port in range(start, start + max_tries):
+
+
+    def find_free_port(self,start=8050):
+        port = start
+        while(True):
             with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
                 try:
                     s.bind(('localhost', port))
                     return port
                 except OSError:
-                    continue
-        raise RuntimeError("No available port found for Dash server")
+                    port = port + 1
     
 
 
@@ -1492,7 +1573,34 @@ class LegendKernel(Kernel):
                 'user_expressions': {}
                 }
             else:
+                if(self.start_aggrid_dash(df)=="No port Found"):
+                    s = HTML(f"<div style='color:  red;'>AgGrid haven't generated. Please try again</div>")
+                    self.send_response(self.iopub_socket,
+                        'display_data',
+                        {
+                            'data': {
+                                'text/html': str(s.data)
+                            },
+                            'metadata': {}
+                        }
+                    )
+                    return {
+                    'status': 'error',
+                    'execution_count': self.execution_count,
+                    'payload': [],
+                    'user_expressions': {}
+                    }
                 url = self.start_aggrid_dash(df)
+                s = HTML(f"<div style='color:  green;'>{url}</div>")
+                self.send_response(self.iopub_socket,
+                    'display_data',
+                    {
+                        'data': {
+                            'text/html': str(s.data)
+                        },
+                        'metadata': {}
+                    }
+                )
                 html_output = f'''
                     <iframe src="{url}" 
                             width="100%" 
@@ -1506,6 +1614,12 @@ class LegendKernel(Kernel):
                     },
                     'metadata': {}
                 })
+                return {
+                'status': 'ok',
+                'execution_count': self.execution_count,
+                'payload': [],
+                'user_expressions': {}
+                }
 
 
 
