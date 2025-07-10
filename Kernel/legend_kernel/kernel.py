@@ -2,19 +2,16 @@ import ast
 import requests
 import datetime
 import json
-import html
 from ipykernel.kernelbase import Kernel
 from .magics import CELL_MAGICS, LINE_MAGICS
 from ipykernel.kernelbase import Kernel
 import pandas as pd
 import os
 import re
-from dash import Dash, html
+from dash import Dash, html, dcc,Output,Input,State
 from dash_ag_grid import AgGrid
 import threading
 import socket
-import subprocess
-import signal
 
 class LegendKernel(Kernel):
     kernel_name = 'legend_kernel'
@@ -122,16 +119,14 @@ class LegendKernel(Kernel):
 
 
     def render_database_ui(self,data):
+        import html
         db_name = data.get("database", "Unknown")
         tables = data.get("tables", [])
-
         html_parts = [f"<details open><summary><b>Database: {html.escape(db_name)}</b></summary><div style='margin-left: 20px;'>"]
-
         for table in tables:
             table_name = table.get("name", "Unnamed Table")
             columns = table.get("columns", [])
             html_parts.append(f"<details><summary><b>Table: {html.escape(table_name)}</b></summary><div style='margin-left: 20px;'>")
-
             # Table of columns
             html_parts.append("<table border='1' style='border-collapse: collapse;'>")
             html_parts.append("<tr><th>Column Name</th><th>Type</th></tr>")
@@ -140,11 +135,9 @@ class LegendKernel(Kernel):
                 col_type = html.escape(col.get("type", ""))
                 html_parts.append(f"<tr><td>{col_name}</td><td>{col_type}</td></tr>")
             html_parts.append("</table></div></details>")
-
         html_parts.append("</div></details>")
         return "\n".join(html_parts)
     
-
 
 
 
@@ -157,93 +150,144 @@ class LegendKernel(Kernel):
             except Exception:
                 return "No port Found"
         column_defs = [
-            {
-                "field": c,
-                "headerName": c.capitalize(),
-                "headerClass": "custom-header"
-            } for c in df.columns
+            {"field": c, "headerName": c.capitalize(), "headerClass": "custom-header"}
+            for c in df.columns
         ]
         app = Dash(__name__)
-        app.index_string = '''<!DOCTYPE html>
-        <html>
-            <head>
-                {%metas%}
-                <title>Data Viewer</title>
-                {%favicon%}
-                {%css%}
-                <style>
-                    html, body {
-                        margin: 0;
-                        padding: 0;
-                        height: 100%;
-                        width: 100%;
-                        background: transparent;
-                        font-family: 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
-                        color: #fff;
-                    }
+        app.index_string = """<!DOCTYPE html>
+    <html>
+    <head>
+    {%metas%}
+    <title>Data Viewer</title>
+    {%favicon%}
+    {%css%}
+    <style>
+        html,body{
+        height:100%;margin:0;padding:0;background:transparent;
+        font-family:'Segoe UI',Roboto,'Helvetica Neue',sans-serif;
+        }
 
-                    .ag-theme-balham {
-                        height: 100vh;
-                        width: 100vw;
-                        --ag-foreground-color: white;
-                        --ag-background-color: #1e1e2f;
-                        --ag-header-background-color: #001f3f;
-                        --ag-header-foreground-color: white;
-                        --ag-font-size: 14px;
-                        --ag-font-family: 'Segoe UI', Roboto, sans-serif;
-                    }
+        /* Base theme container ------------------------------------------ */
+        .ag-theme-balham{
+        height:100vh;width:100vw;
+        --ag-font-size:14px;
+        --ag-font-family:'Segoe UI',Roboto,sans-serif;
+        background-color:var(--ag-background-color); /* follow theme */
+        }
+        /* Ensure *all* nested wrappers inherit theme background */
+        .ag-theme-balham,
+        .ag-theme-balham .ag-root-wrapper,
+        .ag-theme-balham .ag-root,
+        .ag-theme-balham .ag-center-cols-viewport,
+        .ag-theme-balham .ag-center-cols-container,
+        .ag-theme-balham .ag-body-viewport{
+        background-color:var(--ag-background-color)!important;
+        }
 
-                    .custom-header {
-                        background-color: #001f3f !important;
-                        color: white !important;
-                        font-weight: bold;
-                        text-transform: uppercase;
-                    }
+        /* █ Light theme -------------------------------------------------- */
+        .light .ag-theme-balham{
+        --ag-background-color:#ffffff;
+        --ag-foreground-color:#000;
+        --ag-header-background-color:#f0f0f0;
+        --ag-header-foreground-color:#000;
+        --row-even:#ffffff;
+        --row-odd:#fafafa;
+        }
+        .light .custom-header{
+        background:#f0f0f0!important;color:#000!important;
+        font-weight:bold;text-transform:uppercase;
+        }
 
-                    /* Handle dark mode via prefers-color-scheme */
-                    @media (prefers-color-scheme: dark) {
-                        body {
-                            background-color: #1e1e2f;
-                            color: #fff;
-                        }
+        /* █ Dark theme --------------------------------------------------- */
+        .dark .ag-theme-balham{
+        --ag-background-color:#1e1e2f;
+        --ag-foreground-color:#fff;
+        --ag-header-background-color:#001f3f;
+        --ag-header-foreground-color:#fff;
+        --row-even:#1e1e2f;
+        --row-odd:#22223a;
+        }
+        .dark .custom-header{
+        background:#001f3f!important;color:#fff!important;
+        font-weight:bold;text-transform:uppercase;
+        }
 
-                        .ag-theme-balham {
-                            --ag-background-color: #1e1e2f;
-                            --ag-foreground-color: white;
-                            --ag-header-background-color: #001f3f;
-                            --ag-header-foreground-color: white;
-                        }
-                    }
-                </style>
-            </head>
-            <body>
-                {%app_entry%}
-                <footer>
-                    {%config%}
-                    {%scripts%}
-                    {%renderer%}
-                </footer>
-            </body>
-        </html>'''
-        app.layout = html.Div([
-            AgGrid(
-                rowData=df.to_dict("records"),
-                columnDefs=column_defs,
-                defaultColDef={
-                    "sortable": True,
-                    "filter": True,
-                    "resizable": True
-                },
-                columnSize="sizeToFit",
-                className="ag-theme-balham"
-            )
-        ], id="grid", style={"margin": 0, "padding": 0, "height": "100vh", "width": "100vw"})
+        /* Row striping & hover ------------------------------------------ */
+        .ag-theme-balham .ag-row-even{background-color:var(--row-even);}
+        .ag-theme-balham .ag-row-odd {background-color:var(--row-odd);}
+        .dark .ag-theme-balham .ag-row-hover .ag-cell{
+        background-color:#2e2e48!important; /* subtle dark hover */
+        }
 
+        /* First column style -------------------------------------------- */
+        .ag-theme-balham .ag-row .ag-cell[col-id="0"]{
+        color:#003d6f;font-weight:600;      /* navy blue field names */
+        }
+
+        /* Column‑menu icon colours -------------------------------------- */
+        .ag-theme-balham .ag-header-cell-menu-button       {filter:invert(0%);}
+        .ag-theme-balham .ag-header-cell-menu-button:hover {filter:invert(0%);}
+        .dark .ag-theme-balham .ag-header-cell-menu-button       {filter:invert(100%);}
+        .dark .ag-theme-balham .ag-header-cell-menu-button:hover {filter:invert(100%);}
+
+        /* Theme toggle button ------------------------------------------- */
+        .theme-toggle{
+        position:absolute;top:8px;right:12px;z-index:30;
+        background:#001f3f;color:#fff;border:none;border-radius:4px;
+        padding:4px 8px;cursor:pointer;font-size:12px;
+        }
+        .light .theme-toggle{background:#f0f0f0;color:#000;}
+    </style>
+    </head>
+    <body class="light">
+    {%app_entry%}
+    <footer>{%config%}{%scripts%}{%renderer%}</footer>
+    </body>
+    </html>"""
+        app.layout = html.Div(
+            [
+                dcc.Store(id="theme-store", data="light"),
+                html.Button("🌙 Dark mode", id="theme-btn", n_clicks=0,
+                            className="theme-toggle"),
+                AgGrid(
+                    id="grid",
+                    rowData=df.to_dict("records"),
+                    columnDefs=column_defs,
+                    defaultColDef={"sortable": True, "filter": True, "resizable": True},
+                    columnSize="sizeToFit",
+                    className="ag-theme-balham",
+                ),
+            ],
+            id="page",
+            style={"margin": 0, "padding": 0, "height": "100vh", "width": "100vw"},
+        )
+        @app.callback(
+            Output("theme-store", "data"),
+            Output("theme-btn", "children"),
+            Input("theme-btn", "n_clicks"),
+            State("theme-store", "data"),
+            prevent_initial_call=True,
+        )
+        def toggle_theme(n, current):
+            new_theme = "dark" if current == "light" else "light"
+            btn_label = "☀️ Light mode" if new_theme == "dark" else "🌙 Dark mode"
+            return new_theme, btn_label
+        @app.callback(
+            Output("page", "className"),
+            Input("theme-store", "data"),
+        )
+        def apply_theme(theme):
+            return theme
         threading.Thread(
             target=lambda: app.run(port=port, debug=False, use_reloader=False),
-            daemon=True
+            daemon=True,
         ).start()
         return f"http://localhost:{port}"
+
+
+
+
+
 
 
 
@@ -1026,6 +1070,7 @@ class LegendKernel(Kernel):
                 }
             except Exception as e:
                 from IPython.display import HTML
+                import html
                 s = HTML(f"<div style='color: red;'>Parsing/Rendering failed: {html.escape(str(e))}</div>")
                 self.send_response(self.iopub_socket, 'display_data', {
                     'data': {'text/html': str(s.data)},
@@ -1679,12 +1724,20 @@ class LegendKernel(Kernel):
                 for e in matches
             ]
             if not matches:
-                matches = entries
                 matches = [
                     e + '/' if os.path.isdir(os.path.join(dir_path, e)) else e
-                    for e in matches
+                    for e in entries
                 ]
-            cursor_start = len("load ") + len(path_prefix) - len(partial)
+            completed_file = (
+                len(matches) == 1 and
+                not matches[0].endswith('/') and
+                os.path.isfile(os.path.join(dir_path, matches[0]))
+            )
+            if completed_file:
+                matches = [' local::DuckDuckConnection']
+                cursor_start = cursor_end = cursor_pos
+            else:
+                cursor_start = len("load ") + len(path_prefix) - len(partial)
             return {
                 'matches': matches,
                 'cursor_start': cursor_start,
